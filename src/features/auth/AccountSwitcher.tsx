@@ -2,61 +2,111 @@ import {
   IonButton,
   IonButtons,
   IonContent,
-  IonHeader,
   IonIcon,
   IonList,
+  IonLoading,
   IonPage,
   IonRadioGroup,
+  IonReorderGroup,
   IonTitle,
   IonToolbar,
-  useIonModal,
 } from "@ionic/react";
 import { add } from "ionicons/icons";
-import { useAppDispatch, useAppSelector } from "../../store";
-import { changeAccount } from "./authSlice";
-import Login from "./Login";
-import { RefObject, useEffect, useState } from "react";
-import Account from "./Account";
+import { useContext, useEffect, useState } from "react";
 
-interface AccountSwitcherProps {
+import AppHeader from "#/features/shared/AppHeader";
+import {
+  ListEditButton,
+  ListEditorContext,
+  ListEditorProvider,
+} from "#/features/shared/ListEditor";
+import { moveItem } from "#/helpers/array";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import Account from "./Account";
+import { loggedInAccountsSelector } from "./authSelectors";
+import { setAccounts } from "./authSlice";
+
+type AccountSwitcherProps = {
   onDismiss: (data?: string, role?: string) => void;
-  pageRef: RefObject<HTMLElement | undefined>;
+  onSelectAccount: (account: string) => Promise<void> | void;
+  showGuest?: boolean;
+  activeHandle?: string;
+} & (
+  | {
+      allowEdit?: true;
+      presentLogin: () => void;
+    }
+  | {
+      allowEdit: false;
+    }
+);
+
+export default function AccountSwitcher(props: AccountSwitcherProps) {
+  return (
+    <ListEditorProvider>
+      <AccountSwitcherContents {...props} />
+    </ListEditorProvider>
+  );
 }
 
-export default function AccountSwitcher({
+function AccountSwitcherContents({
   onDismiss,
-  pageRef,
+  onSelectAccount,
+  allowEdit = true,
+  showGuest = true,
+  activeHandle: _activeHandle,
+  ...rest
 }: AccountSwitcherProps) {
+  // presentLogin only exists if allowEdit = false
+  let presentLogin: (() => void) | undefined;
+  if ("presentLogin" in rest) presentLogin = rest.presentLogin;
+
   const dispatch = useAppDispatch();
-  const accounts = useAppSelector((state) => state.auth.accountData?.accounts);
-  const activeHandle = useAppSelector(
+  const [loading, setLoading] = useState(false);
+  const accounts = useAppSelector(
+    showGuest
+      ? (state) => state.auth.accountData?.accounts
+      : loggedInAccountsSelector,
+  );
+
+  const appActiveHandle = useAppSelector(
     (state) => state.auth.accountData?.activeHandle,
   );
-  const [editing, setEditing] = useState(false);
 
-  // Modals don't access to PageContext, so just inject the login modal manually
-  const [login, onDismissLogin] = useIonModal(Login, {
-    onDismiss: (data: string, role: string) => onDismissLogin(data, role),
-  });
+  const [selectedAccount, setSelectedAccount] = useState(
+    _activeHandle ?? appActiveHandle,
+  );
+
+  const { editing } = useContext(ListEditorContext);
+
+  useEffect(() => {
+    setSelectedAccount(_activeHandle ?? appActiveHandle);
+  }, [_activeHandle, appActiveHandle]);
 
   useEffect(() => {
     if (accounts?.length) return;
 
     onDismiss();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accounts]);
+  }, [accounts, onDismiss]);
+
+  const accountEls = accounts?.map((account) => (
+    <Account
+      key={account.handle}
+      account={account}
+      editing={editing}
+      allowEdit={allowEdit}
+    />
+  ));
 
   return (
     <IonPage>
-      <IonHeader>
+      <IonLoading isOpen={loading} />
+      <AppHeader>
         <IonToolbar>
           <IonButtons slot="start">
             {editing ? (
-              <IonButton
-                onClick={() =>
-                  login({ presentingElement: pageRef.current ?? undefined })
-                }
-              >
+              <IonButton onClick={() => presentLogin?.()}>
                 <IonIcon icon={add} />
               </IonButton>
             ) : (
@@ -64,33 +114,63 @@ export default function AccountSwitcher({
             )}
           </IonButtons>
           <IonTitle>Accounts</IonTitle>
-          <IonButtons slot="end">
-            {editing ? (
-              <IonButton onClick={() => setEditing(false)}>Done</IonButton>
-            ) : (
-              <IonButton onClick={() => setEditing(true)}>Edit</IonButton>
-            )}
-          </IonButtons>
+          {allowEdit && (
+            <IonButtons slot="end">
+              <ListEditButton />
+            </IonButtons>
+          )}
         </IonToolbar>
-      </IonHeader>
+      </AppHeader>
       <IonContent>
-        <IonRadioGroup
-          value={activeHandle}
-          onIonChange={(e) => {
-            dispatch(changeAccount(e.target.value));
-            onDismiss();
-          }}
-        >
+        {!editing ? (
+          <IonRadioGroup
+            value={selectedAccount}
+            onIonChange={async (e) => {
+              const old = selectedAccount;
+              setSelectedAccount(e.target.value);
+
+              const selectionChangePromise = onSelectAccount(e.target.value);
+
+              if (!selectionChangePromise) {
+                onDismiss();
+                return;
+              }
+
+              setLoading(true);
+
+              try {
+                await selectionChangePromise;
+              } catch (error) {
+                setSelectedAccount(old);
+                throw error;
+              } finally {
+                setLoading(false);
+              }
+
+              onDismiss();
+            }}
+          >
+            <IonList>{accountEls}</IonList>
+          </IonRadioGroup>
+        ) : (
           <IonList>
-            {accounts?.map((account) => (
-              <Account
-                key={account.handle}
-                account={account}
-                editing={editing}
-              />
-            ))}
+            <IonReorderGroup
+              onIonItemReorder={(event) => {
+                if (accounts)
+                  dispatch(
+                    setAccounts(
+                      moveItem(accounts, event.detail.from, event.detail.to),
+                    ),
+                  );
+
+                event.detail.complete();
+              }}
+              disabled={false}
+            >
+              {accountEls}
+            </IonReorderGroup>
           </IonList>
-        </IonRadioGroup>
+        )}
       </IonContent>
     </IonPage>
   );

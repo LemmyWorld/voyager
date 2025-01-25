@@ -1,10 +1,7 @@
-import { css } from "@emotion/react";
-import styled from "@emotion/styled";
 import {
   IonButton,
   IonButtons,
   IonContent,
-  IonHeader,
   IonIcon,
   IonItem,
   IonLabel,
@@ -15,28 +12,17 @@ import {
   IonToolbar,
 } from "@ionic/react";
 import { close } from "ionicons/icons";
-import { useCallback, useEffect, useState } from "react";
+import {
+  useEffect,
+  experimental_useEffectEvent as useEffectEvent,
+  useState,
+} from "react";
 import { VList } from "virtua";
 
-const TransparentIonToolbar = styled(IonToolbar)`
-  --background: none;
-  --border-width: 0 !important;
-`;
+import AppHeader from "../AppHeader";
 
-const CloseButton = styled(IonButton)`
-  border-radius: 50%;
-  background: rgba(180, 180, 180, 0.2);
-`;
-
-const StyledIonSearchbar = styled(IonSearchbar)`
-  padding-top: 0;
-  padding-bottom: 0;
-  height: 40px;
-`;
-
-const StyledIonList = styled(IonList)`
-  --ion-item-background: none;
-`;
+import sharedStyles from "#/features/shared/shared.module.css";
+import styles from "./GenericSelectorModal.module.css";
 
 interface GenericSelectorModalProps<I> {
   search: (query: string) => Promise<I[]>;
@@ -57,29 +43,33 @@ export default function GenericSelectorModal<I>({
 }: GenericSelectorModalProps<I>) {
   const [items, setItems] = useState<I[]>([]);
 
-  const query = useCallback(
-    async (q: string) => {
-      setItems(await search(q));
-    },
-    [search],
-  );
+  async function query(q: string) {
+    setItems(await search(q));
+  }
+
+  const queryEvent = useEffectEvent(query);
 
   useEffect(() => {
-    query("");
-  }, [query]);
+    queryEvent("");
+  }, []);
 
   return (
     <IonPage>
-      <IonHeader>
-        <TransparentIonToolbar>
+      <AppHeader>
+        <IonToolbar className={sharedStyles.transparentIonToolbar}>
           <IonButtons slot="end">
-            <CloseButton color="medium" onClick={() => onDismiss()}>
+            <IonButton
+              className={sharedStyles.closeButton}
+              color="medium"
+              onClick={() => onDismiss()}
+            >
               <IonIcon icon={close} />
-            </CloseButton>
+            </IonButton>
           </IonButtons>
           <IonTitle>{itemPlural}</IonTitle>
-        </TransparentIonToolbar>
-        <StyledIonSearchbar
+        </IonToolbar>
+        <IonSearchbar
+          className={styles.searchbar}
           placeholder={`${itemSingular} name`}
           debounce={500}
           enterkeyhint="go"
@@ -88,21 +78,21 @@ export default function GenericSelectorModal<I>({
           }}
           autoFocus
         />
-      </IonHeader>
+      </AppHeader>
       <IonContent>
-        <StyledIonList
-          css={css`
-            height: 100%;
-          `}
-        >
-          <VList>
-            {items.map((item) => (
-              <IonItem key={getIndex(item)} onClick={() => onDismiss(item)}>
-                <IonLabel>{getLabel(item)}</IonLabel>
-              </IonItem>
-            ))}
+        <IonList className={styles.list}>
+          <VList count={items.length}>
+            {(i) => {
+              const item = items[i]!;
+
+              return (
+                <IonItem key={getIndex(item)} onClick={() => onDismiss(item)}>
+                  <IonLabel>{getLabel(item)}</IonLabel>
+                </IonItem>
+              );
+            }}
           </VList>
-        </StyledIonList>
+        </IonList>
       </IonContent>
     </IonPage>
   );

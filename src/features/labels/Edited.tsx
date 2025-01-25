@@ -1,19 +1,13 @@
-import { CommentView, PostView } from "lemmy-js-client";
-import { IonIcon, useIonAlert } from "@ionic/react";
+import { useIonAlert } from "@ionic/react";
 import { pencil } from "ionicons/icons";
-import { MouseEvent, useMemo } from "react";
+import { CommentView, PostView } from "lemmy-js-client";
+import { MouseEvent } from "react";
+
+import Stat from "#/features/post/detail/Stat";
+
 import { formatRelative } from "./Ago";
-import styled from "@emotion/styled";
-import { fixLemmyDateString } from "../../helpers/date";
 
-const Container = styled.div`
-  display: flex;
-  align-items: center;
-  gap: inherit;
-
-  margin: -3px;
-  padding: 3px;
-`;
+import styles from "./Edited.module.css";
 
 interface EditedProps {
   item: PostView | CommentView;
@@ -26,17 +20,17 @@ export default function Edited({ item, showDate, className }: EditedProps) {
 
   const edited = "comment" in item ? item.comment.updated : item.post.updated;
 
-  const editedLabelIfNeeded = useMemo(() => {
+  const editedLabelIfNeeded = (() => {
     if (!edited) return;
     if (!showDate) return;
 
-    const createdLabel = formatRelative(item.counts.published);
-    const editedLabel = formatRelative(edited);
+    const createdLabel = formatRelative(new Date(item.counts.published));
+    const editedLabel = formatRelative(new Date(edited));
 
     if (createdLabel === editedLabel) return;
 
     return editedLabel;
-  }, [edited, item.counts.published, showDate]);
+  })();
 
   if (!edited) return;
 
@@ -45,19 +39,24 @@ export default function Edited({ item, showDate, className }: EditedProps) {
 
     if (!edited) return;
 
+    const date = new Date(edited);
+
     present({
-      header: `Edited ${formatRelative(edited)} Ago`,
-      message: `Last edited on ${new Date(
-        fixLemmyDateString(edited),
-      ).toLocaleTimeString()}`,
+      header: `Edited ${formatRelative(date)} Ago`,
+      message: `Last edited on ${date.toDateString()} at ${date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`,
       buttons: ["OK"],
     });
   }
 
   return (
-    <Container onClick={presentEdited}>
-      <IonIcon icon={pencil} className={className} />
+    <Stat
+      className={styles.edited}
+      button
+      onClick={presentEdited}
+      icon={pencil}
+      iconClassName={className}
+    >
       {editedLabelIfNeeded}
-    </Container>
+    </Stat>
   );
 }

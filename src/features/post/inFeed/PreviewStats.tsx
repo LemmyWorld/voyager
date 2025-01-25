@@ -1,16 +1,13 @@
-import styled from "@emotion/styled";
-import { IonIcon } from "@ionic/react";
-import { chatbubbleOutline, timeOutline } from "ionicons/icons";
+import { chatbubbleOutline } from "ionicons/icons";
 import { PostView } from "lemmy-js-client";
-import Ago from "../../labels/Ago";
-import Vote from "../../labels/Vote";
-import { formatNumber } from "../../../helpers/number";
 
-const Container = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-`;
+import Ago from "#/features/labels/Ago";
+import Vote from "#/features/labels/Vote";
+import Stat from "#/features/post/detail/Stat";
+import TimeStat from "#/features/post/detail/TimeStat";
+import { formatNumber } from "#/helpers/number";
+
+import styles from "./PreviewStats.module.css";
 
 interface PreviewStatsProps {
   post: PostView;
@@ -18,12 +15,12 @@ interface PreviewStatsProps {
 
 export default function PreviewStats({ post }: PreviewStatsProps) {
   return (
-    <Container>
+    <div className={styles.container}>
       <Vote item={post} />
-      <IonIcon icon={chatbubbleOutline} />
-      {formatNumber(post.counts.comments)}
-      <IonIcon icon={timeOutline} />
-      <Ago date={post.post.published} />
-    </Container>
+      <Stat icon={chatbubbleOutline}>{formatNumber(post.counts.comments)}</Stat>
+      <TimeStat>
+        <Ago date={post.post.published} />
+      </TimeStat>
+    </div>
   );
 }

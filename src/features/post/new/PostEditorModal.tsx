@@ -1,7 +1,9 @@
-import PostEditor from "./PostEditor";
-import { useAppSelector } from "../../../store";
-import { DynamicDismissableModal } from "../../shared/DynamicDismissableModal";
 import { PostView } from "lemmy-js-client";
+
+import { DynamicDismissableModal } from "#/features/shared/DynamicDismissableModal";
+import { useAppSelector } from "#/store";
+
+import PostEditor from "./PostEditor";
 
 interface PostEditorModalProps {
   isOpen: boolean;
@@ -21,14 +23,14 @@ export default function PostEditorModal({
   const editOrCreateProps =
     typeof postOrCommunity === "string"
       ? {
-          community: communityByHandle[postOrCommunity],
+          community: communityByHandle[postOrCommunity.toLowerCase()],
         }
       : {
           existingPost: postOrCommunity,
         };
 
   return (
-    <DynamicDismissableModal isOpen={isOpen} setIsOpen={setIsOpen}>
+    <DynamicDismissableModal isOpen={isOpen} setIsOpen={setIsOpen} textRecovery>
       {({ setCanDismiss, dismiss }) => (
         <PostEditor
           setCanDismiss={setCanDismiss}

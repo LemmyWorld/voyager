@@ -1,15 +1,9 @@
-import styled from "@emotion/styled";
-import {
-  calculateIsCakeDay,
-  calculateNewAccount,
-  fixLemmyDateString,
-} from "../../../helpers/date";
-import { useAppSelector } from "../../../store";
 import { useMemo } from "react";
 
-const NewAccountBadge = styled.span`
-  color: gold;
-`;
+import { calculateIsCakeDay, calculateNewAccount } from "#/helpers/date";
+import { useAppSelector } from "#/store";
+
+import styles from "./AppBadge.module.css";
 
 interface AgeBadgeProps {
   published: string;
@@ -21,7 +15,7 @@ export default function AgeBadge({ published }: AgeBadgeProps) {
   );
 
   const ageBadgeData = useMemo(() => {
-    const publishedDate = new Date(fixLemmyDateString(published));
+    const publishedDate = new Date(published);
 
     if (calculateIsCakeDay(publishedDate)) return { type: "cake" } as const;
 
@@ -41,10 +35,10 @@ export default function AgeBadge({ published }: AgeBadgeProps) {
       if (!highlightNewAccount) return;
 
       return (
-        <NewAccountBadge>
+        <span className={styles.newAccountBadge}>
           {" "}
           👶 {formatDaysOld(ageBadgeData.days)}
-        </NewAccountBadge>
+        </span>
       );
     }
   }

@@ -1,8 +1,15 @@
-import { IonLabel, IonList, IonRadio, IonRadioGroup } from "@ionic/react";
-import { InsetIonItem } from "../../../../../pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../../../store";
+import {
+  IonItem,
+  IonLabel,
+  IonList,
+  IonRadio,
+  IonRadioGroup,
+} from "@ionic/react";
+
+import { ListHeader } from "#/features/settings/shared/formatting";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setUserDarkMode } from "../../../settingsSlice";
-import { ListHeader } from "../../../shared/formatting";
 
 export default function UserDarkMode() {
   const dispatch = useAppDispatch();
@@ -20,14 +27,12 @@ export default function UserDarkMode() {
         onIonChange={(e) => dispatch(setUserDarkMode(e.detail.value))}
       >
         <IonList inset>
-          <InsetIonItem>
-            <IonLabel>Light</IonLabel>
-            <IonRadio value={false} />
-          </InsetIonItem>
-          <InsetIonItem>
-            <IonLabel>Dark</IonLabel>
-            <IonRadio value={true} />
-          </InsetIonItem>
+          <IonItem>
+            <IonRadio value={false}>Light</IonRadio>
+          </IonItem>
+          <IonItem>
+            <IonRadio value={true}>Dark</IonRadio>
+          </IonItem>
         </IonList>
       </IonRadioGroup>
     </>

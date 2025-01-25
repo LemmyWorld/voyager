@@ -1,6 +1,7 @@
-import { Page } from "../features/auth/AppContext";
+import { Page } from "#/features/auth/AppContext";
+
 import { isAndroid } from "./device";
-import { findCurrentPage } from "./ionic";
+import { findCurrentPage, findIonContentScrollView } from "./ionic";
 
 export function scrollUpIfNeeded(
   activePage: Page | null | undefined,
@@ -12,11 +13,7 @@ export function scrollUpIfNeeded(
   const current = activePage.current;
 
   if ("querySelector" in current) {
-    const scroll =
-      current.querySelector(".virtual-scroller") ??
-      current
-        .querySelector("ion-content")
-        ?.shadowRoot?.querySelector(".inner-scroll");
+    const scroll = findIonContentScrollView(current);
 
     if (scroll?.scrollTop) {
       scroll.scrollTo({ top: 0, behavior });

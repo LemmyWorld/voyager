@@ -1,116 +1,36 @@
-import { css } from "@emotion/react";
-import styled from "@emotion/styled";
-import { PrivateMessageView } from "lemmy-js-client";
-import { useAppDispatch, useAppSelector } from "../../../store";
-import { useContext, useEffect, useRef, useState } from "react";
-import useClient from "../../../helpers/useClient";
-import { getInboxCounts, receivedMessages } from "../inboxSlice";
 import { useIonViewDidLeave, useIonViewWillEnter } from "@ionic/react";
-import { PageContext } from "../../auth/PageContext";
+import { PrivateMessageView } from "lemmy-js-client";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  experimental_useEffectEvent as useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import { useLongPress } from "use-long-press";
-import Markdown from "../../shared/Markdown";
 
-const Container = styled.div<{ type: "sent" | "recieved" }>`
-  position: relative; /* Setup a relative container for our pseudo elements */
-  max-width: min(75%, 400px);
-  margin-bottom: 15px;
-  padding: 10px 20px;
-  line-height: 1.3;
-  word-wrap: break-word; /* Make sure the text wraps to multiple lines if long */
+import { PageContext } from "#/features/auth/PageContext";
+import Markdown from "#/features/shared/markdown/Markdown";
+import { cx } from "#/helpers/css";
+import useClient from "#/helpers/useClient";
+import { useAppDispatch, useAppSelector } from "#/store";
 
-  font-size: 1rem;
+import { getInboxCounts, receivedMessages } from "../inboxSlice";
 
-  --border-radius: 20px;
-
-  border-radius: var(--border-radius);
-
-  --bg: var(--ion-background-color);
-  --sentColor: var(--ion-color-primary);
-  --receiveColor: var(--ion-color-medium);
-
-  ${({ theme }) =>
-    !theme.dark &&
-    css`
-      --receiveColor: #eee;
-    `}
-
-  &:before {
-    width: 20px;
-  }
-
-  &:after {
-    width: 26px;
-    background-color: var(--bg); /* All tails have the same bg cutout */
-  }
-
-  a {
-    color: white;
-  }
-
-  p {
-    margin: unset;
-  }
-
-  &:before,
-  &:after {
-    position: absolute;
-    bottom: 0;
-    height: var(
-      --border-radius
-    ); /* height of our bubble "tail" - should match the border-radius above */
-    content: "";
-  }
-
-  ${({ type }) => {
-    switch (type) {
-      case "sent":
-        return css`
-          align-self: flex-end;
-          color: white;
-          background: var(--sentColor);
-
-          &:before {
-            right: -7px;
-            background-color: var(--sentColor);
-            border-bottom-left-radius: 16px 14px;
-          }
-
-          &:after {
-            right: -26px;
-            border-bottom-left-radius: 10px;
-          }
-        `;
-
-      case "recieved":
-        return css`
-          align-self: flex-start;
-          color: black;
-          background: var(--receiveColor);
-
-          &:before {
-            left: -7px;
-            background-color: var(--receiveColor);
-            border-bottom-right-radius: 16px 14px;
-          }
-
-          &:after {
-            left: -26px;
-            border-bottom-right-radius: 10px;
-          }
-        `;
-    }
-  }}
-`;
+import styles from "./Message.module.css";
 
 interface MessageProps {
   message: PrivateMessageView;
+  first?: boolean;
 }
 
-export default function Message({ message }: MessageProps) {
+export default function Message({ message, first }: MessageProps) {
   const dispatch = useAppDispatch();
   const { presentReport } = useContext(PageContext);
   const myUserId = useAppSelector(
-    (state) => state.auth.site?.my_user?.local_user_view?.local_user?.person_id,
+    (state) =>
+      state.site.response?.my_user?.local_user_view?.local_user?.person_id,
   );
 
   const thisIsMyMessage = message.private_message.creator_id === myUserId;
@@ -126,26 +46,13 @@ export default function Message({ message }: MessageProps) {
   useIonViewWillEnter(() => setFocused(true));
   useIonViewDidLeave(() => setFocused(false));
 
-  const bind = useLongPress(
-    () => {
-      presentReport(message);
-    },
-    { cancelOnMovement: true },
-  );
+  const onMessageLongPress = useCallback(() => {
+    presentReport(message);
+  }, [message, presentReport]);
 
-  useEffect(() => {
-    if (
-      message.private_message.read ||
-      (thisIsMyMessage && !thisIsASelfMessage) ||
-      !focused
-    )
-      return;
+  const bind = useLongPress(onMessageLongPress, { cancelOnMovement: 15 });
 
-    setRead();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focused, message, thisIsMyMessage]);
-
-  async function setRead() {
+  const setReadEvent = useEffectEvent(async () => {
     if (loading) return;
 
     setLoading(true);
@@ -162,16 +69,36 @@ export default function Message({ message }: MessageProps) {
     }
 
     await dispatch(receivedMessages([response.private_message_view]));
-    await dispatch(getInboxCounts());
-  }
+    await dispatch(getInboxCounts(true));
+  });
+
+  useEffect(() => {
+    if (
+      message.private_message.read ||
+      (thisIsMyMessage && !thisIsASelfMessage) ||
+      !focused
+    )
+      return;
+
+    setReadEvent();
+  }, [focused, message, thisIsMyMessage, thisIsASelfMessage]);
 
   return (
-    <Container
-      type={thisIsMyMessage ? "sent" : "recieved"}
+    <div
+      style={{ marginTop: first ? "15px" : "0" }}
+      className={cx(
+        styles.container,
+        thisIsMyMessage ? styles.sent : styles.received,
+      )}
       ref={containerRef}
       {...bind()}
     >
-      <Markdown>{message.private_message.content}</Markdown>
-    </Container>
+      <Markdown
+        id={`private-message_${message.private_message.id}`}
+        className="collapse-md-margins"
+      >
+        {message.private_message.content}
+      </Markdown>
+    </div>
   );
 }

@@ -1,10 +1,16 @@
 import { IonLabel, IonList } from "@ionic/react";
-import { ListHeader } from "../../shared/formatting";
-import Haptics from "./Haptics";
-import ProfileTabLabel from "./ProfileTabLabel";
-import LinkHandler from "./LinkHandler";
+
+import { ListHeader } from "#/features/settings/shared/formatting";
+
+import BackupSettings from "./backup/BackupSettings";
+import ClearCache from "./ClearCache";
 import DefaultFeed from "./DefaultFeed";
+import Haptics from "./Haptics";
+import LinkHandler from "./LinkHandler";
 import NoSubscribedInFeed from "./NoSubscribedInFeed";
+import OpenNativeApps from "./OpenNativeApps";
+import ProfileTabLabel from "./ProfileTabLabel";
+import Thumbnailinator from "./Thumbnailinator";
 
 export default function Other() {
   return (
@@ -15,9 +21,13 @@ export default function Other() {
       <IonList inset>
         <DefaultFeed />
         <LinkHandler />
+        <OpenNativeApps />
         <ProfileTabLabel />
         <Haptics />
         <NoSubscribedInFeed />
+        <Thumbnailinator />
+        <ClearCache />
+        <BackupSettings />
       </IonList>
     </>
   );

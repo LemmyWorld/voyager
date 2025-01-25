@@ -1,51 +1,33 @@
-import { useAppDispatch, useAppSelector } from "../../store";
-import { IonIcon } from "@ionic/react";
-import { arrowDownSharp, arrowUpSharp } from "ionicons/icons";
-import styled from "@emotion/styled";
-import { voteOnPost } from "../post/postSlice";
-import React, { useContext } from "react";
-import { voteOnComment } from "../comment/commentSlice";
-import { downvotesDisabled, voteError } from "../../helpers/toastMessages";
-import { PageContext } from "../auth/PageContext";
-import {
-  calculateTotalScore,
-  calculateSeparateScore,
-} from "../../helpers/vote";
-import { CommentView, PostView } from "lemmy-js-client";
-import { OVoteDisplayMode } from "../../services/db";
-import { isDownvoteEnabledSelector } from "../auth/authSlice";
 import { ImpactStyle } from "@capacitor/haptics";
-import useHapticFeedback from "../../helpers/useHapticFeedback";
-import useAppToast from "../../helpers/useAppToast";
-import { formatNumber } from "../../helpers/number";
+import { arrowDownSharp, arrowUpSharp } from "ionicons/icons";
+import { CommentView, PostView } from "lemmy-js-client";
+import React, { useContext } from "react";
 
-const Container = styled.div<{
-  vote?: 1 | -1 | 0;
-  voteRepresented?: 1 | -1;
-}>`
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+import { PageContext } from "#/features/auth/PageContext";
+import { isDownvoteEnabledSelector } from "#/features/auth/siteSlice";
+import { voteOnComment } from "#/features/comment/commentSlice";
+import { voteOnPost } from "#/features/post/postSlice";
+import { getVoteErrorMessage } from "#/helpers/lemmyErrors";
+import { formatNumber } from "#/helpers/number";
+import { downvotesDisabled } from "#/helpers/toastMessages";
+import useAppToast from "#/helpers/useAppToast";
+import useHapticFeedback from "#/helpers/useHapticFeedback";
+import { calculateSeparateScore, calculateTotalScore } from "#/helpers/vote";
+import { OVoteDisplayMode } from "#/services/db";
+import { useAppDispatch, useAppSelector } from "#/store";
 
-  && {
-    color: ${({ vote, voteRepresented }) => {
-      if (voteRepresented === undefined || vote === voteRepresented) {
-        switch (vote) {
-          case 1:
-            return "var(--ion-color-primary-fixed)";
-          case -1:
-            return "var(--ion-color-danger)";
-        }
-      }
-    }};
-  }
-`;
+import VoteStat from "./VoteStat";
 
+import styles from "./Vote.module.css";
 interface VoteProps {
   item: PostView | CommentView;
+  className?: string;
 }
 
-export default function Vote({ item }: VoteProps): React.ReactElement {
+export default function Vote({
+  item,
+  className,
+}: VoteProps): React.ReactElement {
   const presentToast = useAppToast();
   const dispatch = useAppDispatch();
   const votesById = useAppSelector((state) =>
@@ -83,9 +65,13 @@ export default function Vote({ item }: VoteProps): React.ReactElement {
     }
 
     try {
-      await dispatch(dispatcherFn(id, vote));
+      await dispatch(dispatcherFn(item as CommentView & PostView, vote));
     } catch (error) {
-      presentToast(voteError);
+      presentToast({
+        color: "danger",
+        message: getVoteErrorMessage(error),
+      });
+
       throw error;
     }
   }
@@ -99,51 +85,64 @@ export default function Vote({ item }: VoteProps): React.ReactElement {
       const { upvotes, downvotes } = calculateSeparateScore(item, votesById);
       return (
         <>
-          <Container
-            vote={myVote}
+          <VoteStat
+            button
+            icon={arrowUpSharp}
+            className={className}
+            iconClassName={styles.icon}
+            currentVote={myVote}
             voteRepresented={1}
             onClick={async (e) => {
               await onVote(e, myVote === 1 ? 0 : 1);
             }}
           >
-            <IonIcon icon={arrowUpSharp} /> {formatNumber(upvotes)}
-          </Container>
-          <Container
-            vote={myVote}
+            {formatNumber(upvotes)}
+          </VoteStat>
+          <VoteStat
+            button
+            icon={arrowDownSharp}
+            className={className}
+            iconClassName={styles.icon}
+            currentVote={myVote}
             voteRepresented={-1}
             onClick={async (e) => {
               await onVote(e, myVote === -1 ? 0 : -1);
             }}
           >
-            <IonIcon icon={arrowDownSharp} /> {formatNumber(downvotes)}
-          </Container>
+            {formatNumber(downvotes)}
+          </VoteStat>
         </>
       );
     }
     case OVoteDisplayMode.Hide:
       return (
-        <Container
-          vote={myVote}
+        <VoteStat
+          button
+          icon={myVote === -1 ? arrowDownSharp : arrowUpSharp}
+          className={className}
+          iconClassName={styles.icon}
+          currentVote={myVote}
           onClick={async (e) => {
             await onVote(e, myVote ? 0 : 1);
           }}
-        >
-          <IonIcon icon={myVote === -1 ? arrowDownSharp : arrowUpSharp} />
-        </Container>
+        />
       );
     // Total score
     default: {
       const score = calculateTotalScore(item, votesById);
       return (
-        <Container
-          vote={myVote}
+        <VoteStat
+          button
+          icon={myVote === -1 ? arrowDownSharp : arrowUpSharp}
+          className={className}
+          iconClassName={styles.icon}
+          currentVote={myVote}
           onClick={async (e) => {
             await onVote(e, myVote ? 0 : 1);
           }}
         >
-          <IonIcon icon={myVote === -1 ? arrowDownSharp : arrowUpSharp} />{" "}
           {formatNumber(score)}
-        </Container>
+        </VoteStat>
       );
     }
   }

@@ -1,8 +1,8 @@
-import TextSize from "./TextSize";
-import Posts from "./posts/Posts";
 import CompactSettings from "./CompactSettings";
-import GeneralAppearance from "./General";
-import Votes from "./Votes";
+import LargeSettings from "./LargeSettings";
+import Other from "./other/Other";
+import Posts from "./posts/Posts";
+import TextSize from "./TextSize";
 import ThemesButton from "./ThemesButton";
 
 export default function AppearanceSettings() {
@@ -10,10 +10,10 @@ export default function AppearanceSettings() {
     <>
       <ThemesButton />
       <TextSize />
-      <GeneralAppearance />
       <Posts />
+      <LargeSettings />
       <CompactSettings />
-      <Votes />
+      <Other />
     </>
   );
 }

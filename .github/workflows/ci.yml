@@ -1,26 +1,26 @@
 name: ci
 
-permissions: {}
-
 on:
   push:
     branches:
       - main
+      - release/*
   pull_request:
     branches:
       - main
-  workflow_dispatch: {}
+      - release/*
+  workflow_dispatch:
 
 jobs:
   ci:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: corepack enable
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: 📦 Install dependencies
@@ -35,5 +35,11 @@ jobs:
       - name: 📝 Prettier formatting
         run: pnpm lint:formatting
 
+      - name: 📝 Generate CSS types
+        run: pnpm test:generatecsstypes
+
       - name: 💪 Type check
         run: pnpm test:typecheck
+
+      - name: 📦 Build
+        run: pnpm build

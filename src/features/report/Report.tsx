@@ -1,18 +1,24 @@
+import { IonAlertCustomEvent, OverlayEventDetail } from "@ionic/core";
 import { IonActionSheet, IonAlert } from "@ionic/react";
 import { CommentView, PostView, PrivateMessageView } from "lemmy-js-client";
-import { forwardRef, useImperativeHandle, useState } from "react";
-import useClient from "../../helpers/useClient";
-import { IonAlertCustomEvent, OverlayEventDetail } from "@ionic/core";
-import useAppToast from "../../helpers/useAppToast";
-import { isLemmyError } from "../../helpers/lemmy";
+import { useImperativeHandle, useState } from "react";
+
+import { isLemmyError } from "#/helpers/lemmyErrors";
+import { buildReported } from "#/helpers/toastMessages";
+import useAppToast from "#/helpers/useAppToast";
+import useClient from "#/helpers/useClient";
 
 export type ReportableItem = CommentView | PostView | PrivateMessageView;
 
-export type ReportHandle = {
+export interface ReportHandle {
   present: (item: ReportableItem) => void;
-};
+}
 
-export const Report = forwardRef<ReportHandle>(function Report(_, ref) {
+export default function Report({
+  ref,
+}: {
+  ref: React.RefObject<ReportHandle>;
+}) {
   const presentToast = useAppToast();
   const [item, setItem] = useState<ReportableItem | undefined>();
   const [reportOptionsOpen, setReportOptionsOpen] = useState(false);
@@ -27,12 +33,16 @@ export const Report = forwardRef<ReportHandle>(function Report(_, ref) {
     if ("private_message" in item) return "Private message";
   })();
 
-  useImperativeHandle(ref, () => ({
-    present: (item: ReportableItem) => {
-      setItem(item);
-      setReportOptionsOpen(true);
-    },
-  }));
+  useImperativeHandle(
+    ref,
+    () => ({
+      present: (item: ReportableItem) => {
+        setItem(item);
+        setReportOptionsOpen(true);
+      },
+    }),
+    [],
+  );
 
   async function submitReport(reason: string) {
     if (!item) return;
@@ -69,9 +79,7 @@ export const Report = forwardRef<ReportHandle>(function Report(_, ref) {
       throw error;
     }
 
-    presentToast({
-      message: `${type} reported!`,
-    });
+    if (type) presentToast(buildReported(type));
   }
 
   const submitCustomReason = async function (
@@ -137,4 +145,4 @@ export const Report = forwardRef<ReportHandle>(function Report(_, ref) {
       />
     </>
   );
-});
+}

@@ -1,30 +1,11 @@
-import styled from "@emotion/styled";
-import { css } from "@emotion/react";
-import { IonLabel, IonList, IonRange, IonToggle } from "@ionic/react";
-import { InsetIonItem } from "../../../pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../store";
+import { IonItem, IonLabel, IonList, IonRange, IonToggle } from "@ionic/react";
+
+import { HelperText, ListHeader } from "#/features/settings/shared/formatting";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setFontSizeMultiplier, setUseSystemFontSize } from "../settingsSlice";
-import { HelperText, ListHeader } from "../shared/formatting";
 
-const Range = styled(IonRange)`
-  --bar-background: var(--ion-color-medium);
-
-  ::part(tick) {
-    background: var(--ion-color-medium);
-  }
-`;
-
-const A = styled.div<{ small?: boolean }>`
-  font-size: 1.3em;
-  padding: 0 6px;
-  font-weight: 500;
-
-  ${({ small }) =>
-    small &&
-    css`
-      font-size: 0.8em;
-    `}
-`;
+import styles from "./TextSize.module.css";
 
 const MAX_REGULAR_FONT_ADJUSTMENT = 1.6;
 const MIN_LARGER_FONT_ADJUSTMENT = 2;
@@ -54,17 +35,19 @@ export default function TextSize() {
         <IonLabel>Text size</IonLabel>
       </ListHeader>
       <IonList inset>
-        <InsetIonItem>
-          <IonLabel>Use System Text Size</IonLabel>
+        <IonItem>
           <IonToggle
             checked={useSystemFontSize}
             onIonChange={(e) =>
               dispatch(setUseSystemFontSize(e.detail.checked))
             }
-          />
-        </InsetIonItem>
-        <InsetIonItem>
-          <Range
+          >
+            Use System Text Size
+          </IonToggle>
+        </IonItem>
+        <IonItem>
+          <IonRange
+            className={styles.range}
             disabled={useSystemFontSize}
             ticks
             snaps
@@ -74,15 +57,16 @@ export default function TextSize() {
               dispatch(setFontSizeMultiplier(e.detail.value as number));
             }}
           >
-            <A slot="start" small>
+            <div className={styles.aSmall} slot="start">
               A
-            </A>
-            <A slot="end">A</A>
-          </Range>
-        </InsetIonItem>
+            </div>
+            <div className={styles.a} slot="end">
+              A
+            </div>
+          </IonRange>
+        </IonItem>
         {fontSizeMultiplier >= 1.4 && (
-          <InsetIonItem>
-            <IonLabel>Larger Text Mode</IonLabel>
+          <IonItem>
             <IonToggle
               checked={fontSizeMultiplier > MAX_REGULAR_FONT_ADJUSTMENT}
               onIonChange={() =>
@@ -94,8 +78,10 @@ export default function TextSize() {
                   ),
                 )
               }
-            />
-          </InsetIonItem>
+            >
+              Larger Text Mode
+            </IonToggle>
+          </IonItem>
         )}
       </IonList>
       <HelperText>Default is two ticks from the left.</HelperText>
