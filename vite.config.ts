@@ -1,50 +1,32 @@
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
-import { VitePWA } from "vite-plugin-pwa";
-import svgr from "vite-plugin-svgr";
 import legacy from "@vitejs/plugin-legacy";
+import react from "@vitejs/plugin-react";
+import { ManifestOptions, VitePWA } from "vite-plugin-pwa";
+import svgr from "vite-plugin-svgr";
+import { defineConfig } from "vitest/config";
 
-import fs from "fs";
-
-import { readFileSync } from "fs";
-
-const manifest = JSON.parse(readFileSync("./manifest.json", "utf-8"));
-
-// https://github.com/vitejs/vite/issues/2415#issuecomment-1381196720
-const dotPathFixPlugin = () => ({
-  name: "dot-path-fix-plugin",
-  configureServer: (server) => {
-    server.middlewares.use((req, _, next) => {
-      const reqPath = req.url.split("?", 2)[0];
-
-      if (
-        !req.url.startsWith("/@") &&
-        !fs.existsSync(`.${reqPath}`) &&
-        !fs.existsSync(`./public${reqPath}`)
-      ) {
-        req.url = "/";
-      }
-      next();
-    });
-  },
-});
+// @ts-expect-error -- Waiting for stable typescript eslint config
+// https://eslint.org/docs/latest/use/configure/configuration-files#typescript-configuration-files
+import compilerOptions from "./compilerOptions.js";
+import manifest from "./manifest.json";
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    dotPathFixPlugin(),
     react({
-      jsxImportSource: "@emotion/react",
       babel: {
-        plugins: ["@emotion/babel-plugin"],
+        plugins: [["babel-plugin-react-compiler", compilerOptions]],
       },
     }),
     svgr(),
     VitePWA({
+      devOptions: {
+        enabled: true,
+      },
       registerType: "prompt",
       manifestFilename: "manifest.json",
-      manifest,
+      manifest: manifest as ManifestOptions, // https://github.com/microsoft/TypeScript/issues/32063
       workbox: {
+        maximumFileSizeToCacheInBytes: 2097152 * 2,
         runtimeCaching: [
           {
             handler: "StaleWhileRevalidate",
@@ -55,21 +37,30 @@ export default defineConfig({
       },
     }),
     legacy({
-      modernPolyfills: ["es.array.at"],
+      // es.array.at: Voyager code iOS 15.2
+      // es.object.has-own: ReactMarkdown iOS 15.2
+      modernPolyfills: ["es.array.at", "es.object.has-own"],
     }),
+  ],
+  envPrefix: [
+    "VITE_",
+    "BUILD_FOSS_ONLY",
+    // Keep these explicit. Do not simplify to `APP_`.
+    "APP_BUILD",
+    "APP_VERSION",
+    "APP_GIT_REF",
   ],
   // TODO: Outdated clients trying to access stale codesplit js chucks
   // break. This breaks iOS transitions.
   // Put everything into one chunk for now.
   build: {
+    chunkSizeWarningLimit: 5_000,
     rollupOptions: {
       output: {
         manualChunks: () => "index.js",
 
         // ---- Reproducible builds (f-droid) ----
-        // eslint-disable-next-line no-undef
         ...(process.env.CI_PLATFORM === "android" ||
-        // eslint-disable-next-line no-undef
         process.env.CI_PLATFORM === "ios"
           ? {
               entryFileNames: `[name].js`,
@@ -80,16 +71,16 @@ export default defineConfig({
       },
     },
   },
-  define: {
-    // eslint-disable-next-line no-undef
-    APP_VERSION: JSON.stringify(process.env.npm_package_version),
+  esbuild: {
+    logOverride: { "unsupported-css-nesting": "silent" },
   },
   test: {
+    exclude: ["**/e2e/**", "**/node_modules/**"],
     globals: true,
     environment: "jsdom",
     setupFiles: "./src/setupTests.ts",
   },
   optimizeDeps: {
-    exclude: ["mdast-util-gfm-autolink-literal-lemmy"],
+    exclude: ["mdast-util-gfm-autolink-literal-lemmy", "remark-lemmy-spoiler"],
   },
 });

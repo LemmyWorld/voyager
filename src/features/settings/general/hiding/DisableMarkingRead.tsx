@@ -1,6 +1,7 @@
-import { IonLabel, IonToggle } from "@ionic/react";
-import { InsetIonItem } from "../../../../pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../../store";
+import { IonItem, IonToggle } from "@ionic/react";
+
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setDisableMarkingPostsRead } from "../../settingsSlice";
 
 export default function DisableMarkingRead() {
@@ -10,14 +11,15 @@ export default function DisableMarkingRead() {
   );
 
   return (
-    <InsetIonItem>
-      <IonLabel>Disable Marking Posts Read</IonLabel>
+    <IonItem>
       <IonToggle
         checked={disableMarkingRead}
         onIonChange={(e) =>
           dispatch(setDisableMarkingPostsRead(e.detail.checked))
         }
-      />
-    </InsetIonItem>
+      >
+        Disable Marking Posts Read
+      </IonToggle>
+    </IonItem>
   );
 }

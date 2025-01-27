@@ -1,19 +1,15 @@
-import styled from "@emotion/styled";
-import { IonIcon } from "@ionic/react";
-import { happyOutline, timeOutline } from "ionicons/icons";
+import { happyOutline } from "ionicons/icons";
 import { PostView } from "lemmy-js-client";
-import Ago from "../../labels/Ago";
-import Vote from "../../labels/Vote";
-import Edited from "../../labels/Edited";
 
-const Container = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+import Ago from "#/features/labels/Ago";
+import Edited from "#/features/labels/Edited";
+import Vote from "#/features/labels/Vote";
+import { cx } from "#/helpers/css";
 
-  font-size: 0.8rem;
-  color: var(--ion-color-text-aside);
-`;
+import Stat from "./Stat";
+import TimeStat from "./TimeStat";
+
+import styles from "./Stats.module.css";
 
 interface StatsProps {
   post: PostView;
@@ -21,18 +17,21 @@ interface StatsProps {
 
 export default function Stats({ post }: StatsProps) {
   return (
-    <Container>
+    <div className={cx(styles.container, styles.sharedStatsClass)}>
       <Vote item={post} />
-      <IonIcon icon={happyOutline} />
-      {Math.round(
-        (post.counts.upvotes + post.counts.downvotes
-          ? post.counts.upvotes / (post.counts.upvotes + post.counts.downvotes)
-          : 1) * 100,
-      )}
-      %
-      <IonIcon icon={timeOutline} />
-      <Ago date={post.post.published} />
+      <Stat icon={happyOutline}>
+        {Math.round(
+          (post.counts.upvotes + post.counts.downvotes
+            ? post.counts.upvotes /
+              (post.counts.upvotes + post.counts.downvotes)
+            : 1) * 100,
+        )}
+        %
+      </Stat>
+      <TimeStat>
+        <Ago date={post.post.published} />
+      </TimeStat>
       <Edited item={post} showDate />
-    </Container>
+    </div>
   );
 }

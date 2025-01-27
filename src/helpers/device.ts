@@ -1,13 +1,23 @@
-import UAParser from "ua-parser-js";
 import { Capacitor } from "@capacitor/core";
+import { Mode } from "@ionic/core";
 import { NavMode, NavModes } from "capacitor-android-nav-mode";
+import { memoize } from "es-toolkit";
+import { shareOutline, shareSocialOutline } from "ionicons/icons";
+import { UAParser } from "ua-parser-js";
 
-export function isNative() {
-  return Capacitor.isNativePlatform();
+import { get, LOCALSTORAGE_KEYS } from "#/features/settings/syncStorage";
+
+export function getDeviceMode(): Mode {
+  // md mode is beta, so default ios for all devices
+  return get(LOCALSTORAGE_KEYS.DEVICE_MODE) ?? "ios";
 }
 
+export const isNative = memoize(() => {
+  return Capacitor.isNativePlatform();
+});
+
 export function isInstalled(): boolean {
-  return window.matchMedia("(display-mode: standalone)").matches || isNative();
+  return isNative() || window.matchMedia("(display-mode: standalone)").matches;
 }
 
 export const ua = new UAParser(navigator.userAgent);
@@ -62,3 +72,9 @@ export function getAndroidNavMode() {
   androidNavMode = promise;
   return promise;
 }
+
+export const isIosTheme = memoize(() => getDeviceMode() === "ios");
+
+export const getShareIcon = memoize(() =>
+  isIosTheme() ? shareOutline : shareSocialOutline,
+);

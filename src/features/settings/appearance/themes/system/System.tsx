@@ -1,10 +1,13 @@
 import { IonLabel, IonList } from "@ionic/react";
+
+import { ListHeader } from "#/features/settings/shared/formatting";
+import { isAndroid, isNative } from "#/helpers/device";
+import { useAppSelector } from "#/store";
+
 import DarkMode from "./DarkMode";
-import { ListHeader } from "../../../shared/formatting";
 import DeviceMode from "./DeviceMode";
-import { useAppSelector } from "../../../../../store";
+import QuickSwitchDarkMode from "./QuickSwitchDarkMode";
 import UserDarkMode from "./UserDarkMode";
-import { isAndroid, isNative } from "../../../../../helpers/device";
 
 export default function System() {
   const { usingSystemDarkMode } = useAppSelector(
@@ -21,7 +24,12 @@ export default function System() {
         <DarkMode />
       </IonList>
 
-      {!usingSystemDarkMode && <UserDarkMode />}
+      {!usingSystemDarkMode && (
+        <>
+          <UserDarkMode />
+          <QuickSwitchDarkMode />
+        </>
+      )}
     </>
   );
 }

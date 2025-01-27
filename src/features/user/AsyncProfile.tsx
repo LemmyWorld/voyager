@@ -1,32 +1,25 @@
-import React from "react";
 import {
   IonRefresher,
   IonRefresherContent,
   IonSpinner,
   useIonAlert,
-  useIonRouter,
 } from "@ionic/react";
-import { useEffect, useState } from "react";
-import Profile from "../../features/user/Profile";
 import { GetPersonDetailsResponse } from "lemmy-js-client";
-import styled from "@emotion/styled";
-import { useAppDispatch } from "../../store";
-import { getUser } from "../../features/user/userSlice";
-import { useBuildGeneralBrowseLink } from "../../helpers/routes";
-import { OldLemmyErrorValue, isLemmyError } from "../../helpers/lemmy";
+import {
+  useCallback,
+  useEffect,
+  experimental_useEffectEvent as useEffectEvent,
+  useState,
+} from "react";
 
-export const PageContentIonSpinner = styled(IonSpinner)`
-  position: relative;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-`;
+import Profile from "#/features/user/Profile";
+import { getUser } from "#/features/user/userSlice";
+import { isLemmyError } from "#/helpers/lemmyErrors";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+import { useOptimizedIonRouter } from "#/helpers/useOptimizedIonRouter";
+import { useAppDispatch } from "#/store";
 
-const FailedMessage = styled.div`
-  margin-top: 25vh;
-  text-align: center;
-  color: var(--ion-color-medium);
-`;
+import sharedStyles from "#/features/shared/shared.module.css";
 
 interface AsyncProfileProps {
   handle: string;
@@ -38,26 +31,18 @@ export default function AsyncProfile({ handle }: AsyncProfileProps) {
   const [person, setPerson] = useState<
     GetPersonDetailsResponse | "failed" | undefined
   >();
-  const router = useIonRouter();
+  const router = useOptimizedIonRouter();
   const [present] = useIonAlert();
 
-  useEffect(() => {
-    if (handle) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handle]);
-
-  async function load() {
+  const load = useCallback(async () => {
     let data;
 
     try {
       data = await dispatch(getUser(handle));
     } catch (error) {
       if (
-        isLemmyError(
-          error,
-          "couldnt_find_that_username_or_email" as OldLemmyErrorValue,
-        ) ||
-        isLemmyError(error, "couldnt_find_person")
+        isLemmyError(error, "couldnt_find_person" as never) || // TODO lemmy 0.19 and less support
+        isLemmyError(error, "not_found")
       ) {
         await present(`Huh, u/${handle} doesn't exist. Mysterious...`);
 
@@ -76,9 +61,15 @@ export default function AsyncProfile({ handle }: AsyncProfileProps) {
     }
 
     setPerson(data);
-  }
+  }, [buildGeneralBrowseLink, dispatch, handle, present, router]);
 
-  if (!person) return <PageContentIonSpinner />;
+  const loadEvent = useEffectEvent(load);
+
+  useEffect(() => {
+    if (handle) loadEvent();
+  }, [handle]);
+
+  if (!person) return <IonSpinner className={sharedStyles.pageSpinner} />;
 
   if (person === "failed")
     return (
@@ -95,9 +86,11 @@ export default function AsyncProfile({ handle }: AsyncProfileProps) {
         >
           <IonRefresherContent />
         </IonRefresher>
-        <FailedMessage>failed to load user profile 😢</FailedMessage>
+        <div className={sharedStyles.pageFailedMessage}>
+          failed to load user profile 😢
+        </div>
       </>
     );
 
-  return <Profile person={person} />;
+  return <Profile person={person} onPull={load} />;
 }

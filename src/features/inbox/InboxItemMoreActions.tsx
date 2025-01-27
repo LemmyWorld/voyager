@@ -1,46 +1,32 @@
-import styled from "@emotion/styled";
-import { IonIcon, useIonActionSheet } from "@ionic/react";
-import {
-  ellipsisHorizontal,
-  flagOutline,
-  mailOutline,
-  mailUnreadOutline,
-  personOutline,
-  removeCircleOutline,
-  textOutline,
-} from "ionicons/icons";
+import { mailOutline, mailUnreadOutline } from "ionicons/icons";
+
+import MoreActions from "#/features/comment/CommentEllipsis";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { InboxItemView } from "./InboxItem";
-import { PrivateMessageView } from "lemmy-js-client";
-import MoreActions from "../comment/CommentEllipsis";
-import { useAppDispatch, useAppSelector } from "../../store";
 import { getInboxItemId, markRead } from "./inboxSlice";
-import { getHandle } from "../../helpers/lemmy";
-import { useContext } from "react";
-import { PageContext } from "../auth/PageContext";
-import useAppNavigation from "../../helpers/useAppNavigation";
-import { useUserDetails } from "../user/useUserDetails";
+import PrivateMessageMoreActions from "./PrivateMessageMoreActions";
 
-const EllipsisIcon = styled(IonIcon)`
-  font-size: 1.2rem;
-`;
+import styles from "./InboxItemMoreActions.module.css";
 
-interface InboxItemMoreActions {
+interface InboxItemMoreActionsProps {
   item: InboxItemView;
+
+  ref: React.RefObject<InboxItemMoreActionsHandle>;
 }
 
-export default function InboxItemMoreActions({ item }: InboxItemMoreActions) {
+export interface InboxItemMoreActionsHandle {
+  present: () => void;
+}
+
+export default function InboxItemMoreActions({
+  item,
+  ref,
+}: InboxItemMoreActionsProps) {
   const dispatch = useAppDispatch();
-  const [presentActionSheet] = useIonActionSheet();
-  const { presentReport, presentSelectText } = useContext(PageContext);
-
-  const { navigateToUser } = useAppNavigation();
-
   const readByInboxItemId = useAppSelector(
     (state) => state.inbox.readByInboxItemId,
   );
-
-  const { isBlocked, blockOrUnblock } = useUserDetails(getHandle(item.creator));
-
   const isRead = readByInboxItemId[getInboxItemId(item)];
 
   const markReadAction = {
@@ -51,64 +37,22 @@ export default function InboxItemMoreActions({ item }: InboxItemMoreActions) {
     },
   };
 
-  function presentMessage(item: PrivateMessageView) {
-    presentActionSheet({
-      cssClass: "left-align-buttons",
-      buttons: [
-        markReadAction,
-        {
-          text: "Select Text",
-          icon: textOutline,
-          handler: () => {
-            presentSelectText(item.private_message.content);
-          },
-        },
-        {
-          text: getHandle(item.creator),
-          icon: personOutline,
-          handler: () => {
-            navigateToUser(item.creator);
-          },
-        },
-        {
-          text: "Report",
-          icon: flagOutline,
-          handler: () => {
-            presentReport(item);
-          },
-        },
-        {
-          text: !isBlocked ? "Block User" : "Unblock User",
-          icon: removeCircleOutline,
-          handler: () => {
-            blockOrUnblock();
-          },
-        },
-        {
-          text: "Cancel",
-          role: "cancel",
-        },
-      ],
-    });
-  }
-
-  if ("person_mention" in item || "comment_reply" in item) {
-    return (
-      <MoreActions
-        comment={item}
-        rootIndex={undefined}
-        appendActions={[markReadAction]}
-      />
-    );
-  }
-
   return (
-    <EllipsisIcon
-      icon={ellipsisHorizontal}
-      onClick={(e) => {
-        e.stopPropagation();
-        presentMessage(item);
-      }}
-    />
+    <button className={styles.button}>
+      {"person_mention" in item || "comment_reply" in item ? (
+        <MoreActions
+          comment={item}
+          rootIndex={undefined}
+          appendActions={[markReadAction]}
+          ref={ref}
+        />
+      ) : (
+        <PrivateMessageMoreActions
+          item={item}
+          markReadAction={markReadAction}
+          ref={ref}
+        />
+      )}
+    </button>
   );
 }

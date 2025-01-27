@@ -1,4 +1,5 @@
 import {
+  IonItem,
   IonItemOption,
   IonItemOptions,
   IonItemSliding,
@@ -7,14 +8,31 @@ import {
   IonLoading,
   useIonModal,
 } from "@ionic/react";
-import { InsetIonItem } from "../../../pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../store";
+import { Instance } from "lemmy-js-client";
 import { useContext, useState } from "react";
-import { Instance, InstanceBlockView } from "lemmy-js-client";
-import { ListHeader } from "../shared/formatting";
-import { blockInstance } from "../../auth/authSlice";
-import InstanceSelectorModal from "../../shared/selectorModals/InstanceSelectorModal";
-import { PageContext } from "../../auth/PageContext";
+
+import { PageContext } from "#/features/auth/PageContext";
+import { blockInstance } from "#/features/auth/siteSlice";
+import { ListHeader } from "#/features/settings/shared/formatting";
+import { RemoveItemButton } from "#/features/shared/ListEditor";
+import InstanceSelectorModal from "#/features/shared/selectorModals/InstanceSelectorModal";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+/**
+ * lemmy v0.19 version
+ */
+interface InstanceView {
+  instance: Instance;
+}
+
+/**
+ * TODO remove - Lemmy 0.19 returned communityView. v0.20 returns community.
+ */
+function getInstance(potentialInstance: InstanceView | Instance): Instance {
+  if ("instance" in potentialInstance) return potentialInstance.instance;
+
+  return potentialInstance;
+}
 
 export default function BlockedInstances() {
   const dispatch = useAppDispatch();
@@ -36,18 +54,19 @@ export default function BlockedInstances() {
   );
 
   const instances = useAppSelector(
-    (state) => state.auth.site?.my_user?.instance_blocks,
+    (state) => state.site.response?.my_user?.instance_blocks,
   );
 
   const sortedInstances = instances
+    ?.map(getInstance)
     ?.slice()
-    .sort((a, b) => a.instance.domain.localeCompare(b.instance.domain));
+    .sort((a, b) => a.domain.localeCompare(b.domain));
 
-  async function remove(instanceBlock: InstanceBlockView) {
+  async function remove(instanceBlock: Instance) {
     setLoading(true);
 
     try {
-      await dispatch(blockInstance(false, instanceBlock.instance.id));
+      await dispatch(blockInstance(false, instanceBlock.id));
     } finally {
       setLoading(false);
     }
@@ -61,7 +80,7 @@ export default function BlockedInstances() {
 
       <IonList inset>
         {sortedInstances?.map((instanceBlock) => (
-          <IonItemSliding key={instanceBlock.instance.id}>
+          <IonItemSliding key={instanceBlock.id}>
             <IonItemOptions side="end" onIonSwipe={() => remove(instanceBlock)}>
               <IonItemOption
                 color="danger"
@@ -71,21 +90,24 @@ export default function BlockedInstances() {
                 Unblock
               </IonItemOption>
             </IonItemOptions>
-            <InsetIonItem>
-              <IonLabel>{instanceBlock.instance.domain}</IonLabel>
-            </InsetIonItem>
+            <IonItem>
+              <IonLabel>{instanceBlock.domain}</IonLabel>
+              <RemoveItemButton />
+            </IonItem>
           </IonItemSliding>
         ))}
 
-        <InsetIonItem
-          onClick={() =>
-            presentInstanceSelectorModal({
-              cssClass: "small",
-            })
-          }
-        >
-          <IonLabel color="primary">Add Instance</IonLabel>
-        </InsetIonItem>
+        <IonItemSliding>
+          <IonItem
+            onClick={() =>
+              presentInstanceSelectorModal({
+                cssClass: "small",
+              })
+            }
+          >
+            <IonLabel color="primary">Add Instance</IonLabel>
+          </IonItem>
+        </IonItemSliding>
       </IonList>
 
       <IonLoading isOpen={loading} />

@@ -1,32 +1,37 @@
+import { useIonModal } from "@ionic/react";
+import { noop } from "es-toolkit";
 import {
   homeOutline,
   libraryOutline,
   listOutline,
   peopleOutline,
   pinOutline,
-  shieldOutline,
+  shieldCheckmarkOutline,
 } from "ionicons/icons";
-import { ODefaultFeedType } from "../../../../services/db";
-import { useAppDispatch, useAppSelector } from "../../../../store";
-import { updateDefaultFeed } from "../../settingsSlice";
-import SettingSelector from "../../shared/SettingSelector";
-import { jwtSelector } from "../../../auth/authSlice";
-import { useIonModal } from "@ionic/react";
-import CommunitySelectorModal from "../../../shared/selectorModals/CommunitySelectorModal";
 import { CommunityView } from "lemmy-js-client";
 import { useContext } from "react";
-import { PageContext } from "../../../auth/PageContext";
-import { getHandle } from "../../../../helpers/lemmy";
-import useSupported from "../../../../helpers/useSupported";
+
+import {
+  handleSelector,
+  loggedInSelector,
+} from "#/features/auth/authSelectors";
+import { PageContext } from "#/features/auth/PageContext";
+import SettingSelector from "#/features/settings/shared/SettingSelector";
+import CommunitySelectorModal from "#/features/shared/selectorModals/CommunitySelectorModal";
+import { getHandle } from "#/helpers/lemmy";
+import { ODefaultFeedType } from "#/services/db";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import { updateDefaultFeed } from "../../settingsSlice";
 
 export default function DefaultFeed() {
   const dispatch = useAppDispatch();
   const defaultFeed = useAppSelector(
     (state) => state.settings.general.defaultFeed,
   );
-  const jwt = useAppSelector(jwtSelector);
+  const loggedIn = useAppSelector(loggedInSelector);
+  const handle = useAppSelector(handleSelector);
   const { pageRef } = useContext(PageContext);
-  const moderatedFeedSupported = useSupported("Modded Feed");
 
   const [presentCommunitySelectorModal, onDismiss] = useIonModal(
     CommunitySelectorModal,
@@ -47,11 +52,15 @@ export default function DefaultFeed() {
     },
   );
 
-  // When lemmy v0.18 support removed, this can be removed
-  const options: Record<string, string> = { ...ODefaultFeedType };
-  if (!moderatedFeedSupported) delete options["Moderating"];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const options: any = { ...ODefaultFeedType };
 
-  if (!jwt || !defaultFeed) return; // must be logged in to configure default feed
+  if (!loggedIn) {
+    delete options["Home"];
+    delete options["Moderating"];
+  }
+
+  if (!handle || !defaultFeed) return; // must have specified handle
 
   return (
     <SettingSelector
@@ -61,7 +70,7 @@ export default function DefaultFeed() {
         if (type === ODefaultFeedType.Community) {
           presentCommunitySelectorModal({ cssClass: "small" });
 
-          return () => {}; // nothing to dispatch
+          return noop; // nothing to dispatch
         }
 
         return updateDefaultFeed({ type });
@@ -73,14 +82,12 @@ export default function DefaultFeed() {
         [ODefaultFeedType.Local]: peopleOutline,
         [ODefaultFeedType.CommunityList]: listOutline,
         [ODefaultFeedType.Community]: pinOutline,
-        [ODefaultFeedType.Moderating]: shieldOutline,
+        [ODefaultFeedType.Moderating]: shieldCheckmarkOutline,
       }}
       getSelectedLabel={(option) => {
         if (option === ODefaultFeedType.CommunityList) return "List";
         if (option === ODefaultFeedType.Community)
-          // TODO SettingSelector should handle being passed a non-string item
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return `c/${(defaultFeed as any).name}`;
+          if ("name" in defaultFeed) return `c/${defaultFeed.name}`;
       }}
     />
   );

@@ -1,29 +1,34 @@
+import { useIonActionSheet } from "@ionic/react";
 import { Community, SubscribedType } from "lemmy-js-client";
-import { useContext, useMemo } from "react";
-import { PageContext } from "../auth/PageContext";
-import { useAppDispatch, useAppSelector } from "../../store";
-import { checkIsMod, getHandle } from "../../helpers/lemmy";
-import { useIonActionSheet, useIonRouter } from "@ionic/react";
+import { useContext } from "react";
+
+import { PageContext } from "#/features/auth/PageContext";
 import {
   isAdminSelector,
   localUserSelector,
   showNsfw,
-} from "../auth/authSlice";
+} from "#/features/auth/siteSlice";
+import { checkIsMod, getHandle as useGetHandle } from "#/helpers/lemmy";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+import { shareUrl } from "#/helpers/share";
+import {
+  allNSFWHidden,
+  buildBlockedCommunity,
+  buildFavorited,
+  buildProblemSubscribing,
+  buildSuccessSubscribing,
+} from "#/helpers/toastMessages";
+import useAppToast from "#/helpers/useAppToast";
+import { useOptimizedIonRouter } from "#/helpers/useOptimizedIonRouter";
+import { db } from "#/services/db";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import {
   addFavorite,
   blockCommunity,
   followCommunity,
   removeFavorite,
 } from "./communitySlice";
-import {
-  allNSFWHidden,
-  buildBlocked,
-  buildProblemSubscribing,
-  buildSuccessSubscribing,
-} from "../../helpers/toastMessages";
-import { useBuildGeneralBrowseLink } from "../../helpers/routes";
-import useAppToast from "../../helpers/useAppToast";
-import { db } from "../../services/db";
 
 /**
  *
@@ -36,54 +41,51 @@ export default function useCommunityActions(
   subscribedFromPayload?: SubscribedType,
 ) {
   const presentToast = useAppToast();
-
   const dispatch = useAppDispatch();
-  const communityByHandle = useAppSelector(
-    (state) => state.community.communityByHandle,
+
+  // useGetHandle as signal to react compiler to optimize
+  const communityHandle = useGetHandle(community);
+
+  const subscribedSourceOfTruth = useAppSelector((state) =>
+    state.community.communityByHandle[communityHandle]
+      ? state.community.communityByHandle[communityHandle]?.subscribed
+      : subscribedFromPayload,
   );
-  const router = useIonRouter();
+  const router = useOptimizedIonRouter();
   const buildGeneralBrowseLink = useBuildGeneralBrowseLink();
   const [presentActionSheet] = useIonActionSheet();
 
   const { presentLoginIfNeeded } = useContext(PageContext);
   const { presentPostEditor } = useContext(PageContext);
 
-  const site = useAppSelector((state) => state.auth.site);
+  const site = useAppSelector((state) => state.site.response);
   const isAdmin = useAppSelector(isAdminSelector);
   const localUser = useAppSelector(localUserSelector);
 
-  const communityHandle = getHandle(community);
   const communityId = community.id;
   const isNsfw = community.nsfw;
-
-  const subscribedSourceOfTruth = communityByHandle[communityHandle]
-    ? communityByHandle[communityHandle]?.subscribed
-    : subscribedFromPayload;
 
   const isSubscribed =
     subscribedSourceOfTruth === "Subscribed" ||
     subscribedSourceOfTruth === "Pending";
 
-  const isBlocked = communityByHandle[communityHandle]?.blocked;
+  const isBlocked = useAppSelector(
+    (state) => state.community.communityByHandle[communityHandle]?.blocked,
+  );
 
-  const canPost = useMemo(() => {
+  const canPost = (() => {
     const isMod = site ? checkIsMod(communityHandle, site) : false;
 
-    const canPost = !community.posting_restricted_to_mods || isMod || isAdmin;
-
-    return canPost;
-  }, [community, communityHandle, isAdmin, site]);
+    return !community.posting_restricted_to_mods || isMod || isAdmin;
+  })();
 
   const favoriteCommunities = useAppSelector(
     (state) => state.community.favorites,
   );
 
-  const isFavorite = useMemo(
-    () => favoriteCommunities.includes(communityHandle),
-    [favoriteCommunities, communityHandle],
-  );
+  const isFavorite = favoriteCommunities.includes(communityHandle);
 
-  function post() {
+  const post = () => {
     if (presentLoginIfNeeded()) return;
 
     if (!canPost) {
@@ -96,25 +98,21 @@ export default function useCommunityActions(
     }
 
     presentPostEditor(communityHandle);
-  }
+  };
 
-  async function _block() {
-    await dispatch(blockCommunity(!isBlocked, communityId));
-  }
-
-  async function subscribe() {
+  const subscribe = async () => {
     if (presentLoginIfNeeded()) return;
 
     try {
       await dispatch(followCommunity(!isSubscribed, communityId));
-      presentToast(buildSuccessSubscribing(isSubscribed, communityHandle));
+      presentToast(buildSuccessSubscribing(isSubscribed));
     } catch (error) {
-      presentToast(buildProblemSubscribing(isSubscribed, communityHandle));
+      presentToast(buildProblemSubscribing(isSubscribed));
       throw error;
     }
-  }
+  };
 
-  function favorite() {
+  const favorite = () => {
     if (presentLoginIfNeeded()) return;
 
     if (!isFavorite) {
@@ -123,17 +121,15 @@ export default function useCommunityActions(
       dispatch(removeFavorite(communityHandle));
     }
 
-    presentToast({
-      message: `${
-        isFavorite ? "Unfavorited" : "Favorited"
-      } c/${communityHandle}.`,
-      position: "bottom",
-      color: "success",
-    });
-  }
+    presentToast(buildFavorited(isFavorite));
+  };
 
-  async function block() {
+  const block = async () => {
     if (typeof communityId !== "number") return;
+
+    async function _block() {
+      await dispatch(blockCommunity(!isBlocked, communityId));
+    }
 
     if (
       !isBlocked &&
@@ -165,7 +161,7 @@ export default function useCommunityActions(
             handler: () => {
               (async () => {
                 await _block();
-                presentToast(buildBlocked(!isBlocked, communityHandle));
+                presentToast(buildBlockedCommunity(!isBlocked));
               })();
             },
           },
@@ -179,17 +175,25 @@ export default function useCommunityActions(
       db.setSetting("has_presented_block_nsfw_tip", true);
     } else {
       await _block();
-      presentToast(buildBlocked(!isBlocked, communityHandle));
+      presentToast(buildBlockedCommunity(!isBlocked));
     }
-  }
+  };
 
-  function sidebar() {
+  const modlog = () => {
+    router.push(buildGeneralBrowseLink(`/c/${communityHandle}/log`));
+  };
+
+  const sidebar = () => {
     router.push(buildGeneralBrowseLink(`/c/${communityHandle}/sidebar`));
-  }
+  };
 
-  function view() {
+  const view = () => {
     router.push(buildGeneralBrowseLink(`/c/${communityHandle}`));
-  }
+  };
+
+  const share = () => {
+    shareUrl(community.actor_id);
+  };
 
   return {
     isSubscribed,
@@ -199,7 +203,9 @@ export default function useCommunityActions(
     subscribe,
     favorite,
     block,
+    modlog,
     sidebar,
     view,
+    share,
   };
 }

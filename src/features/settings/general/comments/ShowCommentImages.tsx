@@ -1,6 +1,7 @@
-import { IonLabel, IonToggle } from "@ionic/react";
-import { InsetIonItem } from "../../../../pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../../store";
+import { IonItem, IonToggle } from "@ionic/react";
+
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setShowCommentImages } from "../../settingsSlice";
 
 export default function ShowCommentImages() {
@@ -11,12 +12,13 @@ export default function ShowCommentImages() {
   );
 
   return (
-    <InsetIonItem>
-      <IonLabel>Show Comment Images</IonLabel>
+    <IonItem>
       <IonToggle
         checked={showCommentImages}
         onIonChange={(e) => dispatch(setShowCommentImages(e.detail.checked))}
-      />
-    </InsetIonItem>
+      >
+        Show Comment Images
+      </IonToggle>
+    </IonItem>
   );
 }
