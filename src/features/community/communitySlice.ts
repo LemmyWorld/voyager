@@ -1,26 +1,27 @@
-import { Dictionary, PayloadAction, createSlice } from "@reduxjs/toolkit";
-import { AppDispatch, RootState } from "../../store";
-import { clientSelector, getSite } from "../auth/authSlice";
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import {
   CommunityModeratorView,
   CommunityView,
   GetCommunityResponse,
 } from "lemmy-js-client";
-import { getHandle } from "../../helpers/lemmy";
-import { db } from "../../services/db";
-import { without } from "lodash";
+
+import { clientSelector } from "#/features/auth/authSelectors";
+import { getSite } from "#/features/auth/siteSlice";
+import { getHandle } from "#/helpers/lemmy";
+import { db } from "#/services/db";
+import { AppDispatch, RootState } from "#/store";
 
 interface CommunityState {
-  communityByHandle: Dictionary<CommunityView>;
-  modsByHandle: Dictionary<CommunityModeratorView[]>;
-  trendingCommunities: CommunityView[];
+  communityByHandle: Record<string, CommunityView>;
+  modsByHandle: Record<string, CommunityModeratorView[]>;
+  trendingCommunities: CommunityView[] | undefined;
   favorites: string[];
 }
 
 const initialState: CommunityState = {
   communityByHandle: {},
   modsByHandle: {},
-  trendingCommunities: [],
+  trendingCommunities: undefined,
   favorites: [],
 };
 
@@ -29,14 +30,9 @@ export const communitySlice = createSlice({
   initialState,
   reducers: {
     receivedCommunity: (state, action: PayloadAction<CommunityView>) => {
-      state.communityByHandle[getHandle(action.payload.community)] =
-        action.payload;
-    },
-    receivedCommunities: (state, action: PayloadAction<CommunityView[]>) => {
-      for (const communityView of action.payload) {
-        state.communityByHandle[getHandle(communityView.community)] =
-          communityView;
-      }
+      state.communityByHandle[
+        getHandle(action.payload.community).toLowerCase()
+      ] = action.payload;
     },
     recievedTrendingCommunities: (
       state,
@@ -54,8 +50,9 @@ export const communitySlice = createSlice({
     ) => {
       const handle = getHandle(action.payload.community_view.community);
 
-      state.communityByHandle[handle] = action.payload.community_view;
-      state.modsByHandle[handle] = action.payload.moderators;
+      state.communityByHandle[handle.toLowerCase()] =
+        action.payload.community_view;
+      state.modsByHandle[handle.toLowerCase()] = action.payload.moderators;
     },
   },
 });
@@ -63,7 +60,6 @@ export const communitySlice = createSlice({
 // Action creators are generated for each case reducer function
 export const {
   receivedCommunity,
-  receivedCommunities,
   recievedTrendingCommunities,
   resetCommunities,
   setFavorites,
@@ -100,7 +96,9 @@ export const removeFavorite =
   (community: string) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
     const userHandle = getState().auth.accountData?.activeHandle;
-    const favorites = without(getState().community.favorites, community);
+    const favorites = getState().community.favorites.filter(
+      (fav) => fav !== community,
+    );
 
     if (!userHandle) return;
 

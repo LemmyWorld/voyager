@@ -1,16 +1,23 @@
-import styled from "@emotion/styled";
 import { IonIcon } from "@ionic/react";
-import { css } from "@emotion/react";
+import { ComponentProps } from "react";
 
-export const ToggleIcon = styled(IonIcon)<{ selected: boolean }>`
-  font-size: 24px;
+import { cx } from "#/helpers/css";
 
-  ${({ selected }) =>
-    selected
-      ? css`
-          color: var(--ion-color-primary);
-        `
-      : css`
-          opacity: 0.08;
-        `}
-`;
+import styles from "./ToggleIcon.module.css";
+
+interface ToggleIconProps extends ComponentProps<typeof IonIcon> {
+  selected: boolean;
+}
+
+export function ToggleIcon({ selected, ...props }: ToggleIconProps) {
+  return (
+    <IonIcon
+      {...props}
+      className={cx(
+        props.className,
+        styles.base,
+        selected ? styles.selected : styles.unselected,
+      )}
+    />
+  );
+}

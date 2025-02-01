@@ -1,13 +1,18 @@
+import { compare } from "compare-versions";
 import {
   Comment,
   CommentView,
   Community,
+  CommunityModeratorView,
   GetSiteResponse,
-  LemmyErrorType,
   Post,
+  PostView,
 } from "lemmy-js-client";
-import { Share } from "@capacitor/share";
+
+import { parseJWT } from "./jwt";
+import { quote } from "./markdown";
 import { escapeStringForRegex } from "./regex";
+import { parseUrl } from "./url";
 
 export interface LemmyJWT {
   sub: number;
@@ -53,6 +58,15 @@ export function getRemoteHandle(
   return `${item.name}@${getItemActorName(item)}`;
 }
 
+export function getRemoteHandleFromHandle(
+  handle: string,
+  connectedInstance: string,
+): string {
+  if (handle.includes("@")) return handle;
+
+  return `${handle}@${connectedInstance}`;
+}
+
 export function canModify(comment: Comment) {
   return !comment.deleted && !comment.removed;
 }
@@ -64,7 +78,7 @@ export function buildCommentsTree(
   const map = new Map<number, CommentNodeI>();
   const depthOffset = !parentComment
     ? 0
-    : getDepthFromComment(comments[0].comment) ?? 0;
+    : (getDepthFromComment(comments[0]!.comment) ?? 0);
 
   for (const comment_view of comments) {
     const depthI = getDepthFromComment(comment_view.comment) ?? 0;
@@ -82,7 +96,7 @@ export function buildCommentsTree(
 
   // if its a parent comment fetch, then push the first comment to the top node.
   if (parentComment) {
-    const cNode = map.get(comments[0].comment.id);
+    const cNode = map.get(comments[0]!.comment.id);
     if (cNode) {
       tree.push(cNode);
     }
@@ -121,37 +135,27 @@ export function buildCommentsTreeWithMissing(
 ): CommentNodeI[] {
   const tree = buildCommentsTree(comments, parentComment);
 
-  function childHasMissing(node: CommentNodeI): {
-    missing: boolean;
-    count: number;
-  } {
-    let totalChildren = 0;
-    let missingMarker = false;
-
-    for (const child of node.children) {
-      const res = childHasMissing(child);
-      totalChildren += res.count;
-      if (res.missing) missingMarker = true;
-    }
-
-    const missing =
-      node.comment_view.counts.child_count -
-      node.children.length -
-      totalChildren;
-
-    node.missing = missingMarker ? 0 : missing;
-
-    return {
-      missing: missingMarker || !!missing,
-      count: totalChildren + node.children.length,
-    };
-  }
-
   for (const node of tree) {
     childHasMissing(node);
   }
 
   return tree;
+}
+
+function childHasMissing(node: CommentNodeI) {
+  let missing = node.comment_view.counts.child_count;
+
+  for (const child of node.children) {
+    missing--;
+
+    // the child is responsible for showing missing indicator
+    // if the child has missing comments
+    missing -= child.comment_view.counts.child_count;
+
+    childHasMissing(child);
+  }
+
+  node.missing = missing;
 }
 
 export function getCommentParentId(comment?: Comment): number | undefined {
@@ -237,48 +241,32 @@ export function getFlattenedChildren(comment: CommentNodeI): CommentView[] {
   return flattenedChildren;
 }
 
-export function isUrlImage(url: string): boolean {
-  let parsedUrl;
-
-  try {
-    parsedUrl = new URL(url);
-  } catch (error) {
-    console.error(error);
-    return false;
-  }
-
-  return (
-    parsedUrl.pathname.endsWith(".jpeg") ||
-    parsedUrl.pathname.endsWith(".png") ||
-    parsedUrl.pathname.endsWith(".gif") ||
-    parsedUrl.pathname.endsWith(".jpg") ||
-    parsedUrl.pathname.endsWith(".webp")
-  );
-}
-
-export function isUrlVideo(url: string): boolean {
-  let parsedUrl;
-
-  try {
-    parsedUrl = new URL(url);
-  } catch (error) {
-    console.error(error);
-    return false;
-  }
-
-  return parsedUrl.pathname.endsWith(".mp4");
-}
-
-export function share(item: Post | Comment) {
-  return Share.share({ url: item.ap_id });
-}
-
 export function postHasFilteredKeywords(
   post: Post,
   keywords: string[],
 ): boolean {
   for (const keyword of keywords) {
     if (keywordFoundInSentence(keyword, post.name)) return true;
+  }
+
+  return false;
+}
+
+export function postHasFilteredWebsite(
+  post: Post,
+  websites: string[],
+): boolean {
+  if (!post.url) return false;
+
+  for (const website of websites) {
+    const postUrl = parseUrl(post.url);
+    if (!postUrl) continue;
+
+    if (
+      postUrl.hostname === website ||
+      postUrl.hostname.endsWith(`.${website}`) // match subdomains
+    )
+      return true;
   }
 
   return false;
@@ -298,10 +286,77 @@ export function keywordFoundInSentence(
   return pattern.test(sentence);
 }
 
-export type LemmyErrorValue = LemmyErrorType["error"];
-export type OldLemmyErrorValue = never; // When removing support for an old version of Lemmy, cleanup these references
+export function canModerateCommunity(
+  communityId: number | undefined,
+  moderates: CommunityModeratorView[] | undefined,
+): boolean {
+  if (communityId === undefined) return false;
+  if (!moderates) return false;
+  return moderates.some((m) => m.community.id === communityId);
+}
 
-export function isLemmyError(error: unknown, lemmyErrorValue: LemmyErrorValue) {
-  if (!(error instanceof Error)) return;
-  return error.message === lemmyErrorValue;
+export const parseLemmyJWT = parseJWT<LemmyJWT>;
+
+const CROSS_POST_REGEX =
+  /^[cC]ross-posted from:\s+(https:\/\/(?:[0-9a-z-]+\.?)+\/post\/[0-9]+)/;
+
+export function getCrosspostUrl(post: Post): string | undefined {
+  if (!post.body) return;
+
+  const matches = post.body.match(CROSS_POST_REGEX);
+
+  return matches?.[1];
+}
+
+export function buildCrosspostBody(post: Post, includeTitle = true): string {
+  let header = `cross-posted from: ${post.ap_id}`;
+
+  if (includeTitle) {
+    header += `\n\n${quote(post.name)}`;
+  }
+
+  if (!post.body) return header;
+
+  header += `\n${includeTitle ? ">" : ""}\n`;
+
+  header += quote(post.body.trim());
+
+  return header;
+}
+
+export function isPost(item: PostView | CommentView): item is PostView {
+  return !isComment(item);
+}
+
+export function isComment(item: PostView | CommentView): item is CommentView {
+  return "comment" in item;
+}
+
+const getPublishedDate = (item: PostView | CommentView) => {
+  if (isPost(item)) {
+    return item.post.published;
+  } else {
+    return item.comment.published;
+  }
+};
+
+export function sortPostCommentByPublished(
+  a: PostView | CommentView,
+  b: PostView | CommentView,
+): number {
+  return getPublishedDate(b).localeCompare(getPublishedDate(a));
+}
+
+export const MINIMUM_LEMMY_VERSION = "0.19.0";
+
+export function isMinimumSupportedLemmyVersion(version: string) {
+  return compare(version, MINIMUM_LEMMY_VERSION, ">=");
+}
+
+export function buildLemmyPostLink(instance: string, id: number) {
+  return `https://${instance}/post/${id}`;
+}
+
+export function buildLemmyCommentLink(instance: string, id: number) {
+  return `https://${instance}/comment/${id}`;
 }

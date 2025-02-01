@@ -1,6 +1,7 @@
-import { IonLabel, IonToggle } from "@ionic/react";
-import { InsetIonItem } from "../../../../pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../../store";
+import { IonItem, IonToggle } from "@ionic/react";
+
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setTouchFriendlyLinks } from "../../settingsSlice";
 
 export default function TouchFriendlyLinks() {
@@ -11,12 +12,13 @@ export default function TouchFriendlyLinks() {
   );
 
   return (
-    <InsetIonItem>
-      <IonLabel>Touch Friendly Links</IonLabel>
+    <IonItem>
       <IonToggle
         checked={touchFriendlyLinks}
         onIonChange={(e) => dispatch(setTouchFriendlyLinks(e.detail.checked))}
-      />
-    </InsetIonItem>
+      >
+        Touch Friendly Links
+      </IonToggle>
+    </IonItem>
   );
 }

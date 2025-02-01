@@ -1,5 +1,7 @@
-import { PayloadAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
+
 import {
+  db,
   LongSwipeTriggerPointType,
   OLongSwipeTriggerPointType,
   OSwipeActionComment,
@@ -7,8 +9,7 @@ import {
   OSwipeActionPost,
   SwipeAction,
   SwipeActions,
-  db,
-} from "../../../services/db";
+} from "#/services/db";
 
 interface GestureState {
   swipe: {
@@ -55,7 +56,7 @@ const initialState: GestureState = {
 
 export const gestureSlice = createSlice({
   name: "gesture",
-  initialState: initialState,
+  initialState,
   extraReducers: (builder) => {
     builder.addCase(
       fetchGesturesFromDatabase.fulfilled,

@@ -1,31 +1,10 @@
-import styled from "@emotion/styled";
-import { PersonAggregates } from "lemmy-js-client";
-import { formatNumber } from "../../helpers/number";
-import Ago from "../labels/Ago";
 import { useIonAlert } from "@ionic/react";
-import { formatDistanceToNowStrict } from "date-fns";
-import { fixLemmyDateString } from "../../helpers/date";
+import { PersonAggregates } from "lemmy-js-client";
 
-const Container = styled.div`
-  display: flex;
-  justify-content: space-evenly;
-  gap: 3rem;
-  margin: 1.5rem 3rem;
-`;
+import Ago, { formatRelative } from "#/features/labels/Ago";
+import { formatNumber } from "#/helpers/number";
 
-const Score = styled.div`
-  text-align: center;
-  font-size: 1.3rem;
-  font-weight: 600;
-  cursor: pointer;
-
-  aside {
-    margin-top: 0.35rem;
-    opacity: 0.5;
-    font-size: 0.8rem;
-    font-weight: 500;
-  }
-`;
+import styles from "./Scores.module.css";
 
 interface ScoreProps {
   aggregates: PersonAggregates;
@@ -35,12 +14,6 @@ interface ScoreProps {
 export default function Scores({ aggregates, accountCreated }: ScoreProps) {
   const [present] = useIonAlert();
 
-  const relativeDate = formatDistanceToNowStrict(
-    new Date(fixLemmyDateString(accountCreated)),
-    {
-      addSuffix: false,
-    },
-  );
   const creationDate = new Date(accountCreated);
 
   const posts = aggregates.post_count;
@@ -70,36 +43,39 @@ export default function Scores({ aggregates, accountCreated }: ScoreProps) {
 
   return (
     <>
-      <Container>
-        <Score
+      <div className={styles.container}>
+        <div
+          className={styles.score}
           onClick={() => {
             showScoreAlert("comment");
           }}
         >
           {formatNumber(aggregates.comment_count)}
           <aside>Comment count</aside>
-        </Score>
-        <Score
+        </div>
+        <div
+          className={styles.score}
           onClick={() => {
             showScoreAlert("post");
           }}
         >
           {formatNumber(aggregates.post_count)}
           <aside>Post count</aside>
-        </Score>
-        <Score
+        </div>
+        <div
+          className={styles.score}
           onClick={() => {
             present({
-              header: `Account is ${relativeDate} old`,
-              message: `Created on ${creationDate.toDateString()} at ${creationDate.toLocaleTimeString()}`,
+              header: `Account is ${formatRelative(creationDate, "verbose")} old`,
+              message: `Created on ${creationDate.toDateString()} at ${creationDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`,
               buttons: [{ text: "OK" }],
             });
           }}
         >
-          <Ago date={accountCreated} />
+          <Ago as="short" date={accountCreated} />
           <aside>Account age</aside>
-        </Score>
-      </Container>
+        </div>
+      </div>
     </>
   );
 }

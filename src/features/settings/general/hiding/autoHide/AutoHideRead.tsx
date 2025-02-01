@@ -1,6 +1,7 @@
-import { IonLabel, IonToggle } from "@ionic/react";
-import { InsetIonItem } from "../../../../../pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../../../store";
+import { IonItem, IonToggle } from "@ionic/react";
+
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setAutoHideRead } from "../../../settingsSlice";
 
 export default function AutoHideRead() {
@@ -10,12 +11,13 @@ export default function AutoHideRead() {
   );
 
   return (
-    <InsetIonItem>
-      <IonLabel>Auto Hide Read Posts</IonLabel>
+    <IonItem>
       <IonToggle
         checked={autoHideRead}
         onIonChange={(e) => dispatch(setAutoHideRead(e.detail.checked))}
-      />
-    </InsetIonItem>
+      >
+        Auto Hide Read Posts
+      </IonToggle>
+    </IonItem>
   );
 }

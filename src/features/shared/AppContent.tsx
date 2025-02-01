@@ -1,30 +1,25 @@
-import { css } from "@emotion/react";
-import styled from "@emotion/styled";
 import { IonContent } from "@ionic/react";
-import React from "react";
 
-export const maxWidthCss = css`
-  width: 100%;
-  max-width: 700px;
-  margin-right: auto;
-  margin-left: auto;
-`;
+import { cx } from "#/helpers/css";
 
-export const MaxWidthContainer = styled.div`
-  ${maxWidthCss}
-`;
+import sharedStyles from "./shared.module.css";
+
+export function MaxWidthContainer(props: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div {...props} className={cx(sharedStyles.maxWidth, props.className)} />
+  );
+}
 
 export default function AppContent({
   children,
   scrollY,
   className,
   fullscreen = false,
-}: {
-  children: React.ReactNode;
+}: React.PropsWithChildren<{
   scrollY?: boolean;
   className?: string;
   fullscreen?: boolean;
-}) {
+}>) {
   return (
     <IonContent
       style={{ width: "100%" }}
