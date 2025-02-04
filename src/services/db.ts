@@ -1,18 +1,31 @@
+/* eslint perfectionist/sort-interfaces: ["warn", { partitionByNewLine: true }] */
+
 import { differenceInHours, subHours } from "date-fns";
 import Dexie, { Table } from "dexie";
-import { CommentSortType, FederatedInstances } from "lemmy-js-client";
+import { zipObject } from "es-toolkit";
+import {
+  CommentSortType,
+  FederatedInstances,
+  PostSortType,
+} from "lemmy-js-client";
+
+import { COMMENT_SORTS } from "#/features/comment/CommentSort.js";
+import { ALL_POST_SORTS } from "#/features/feed/PostSort.js";
+import { arrayOfAll } from "#/helpers/array.js";
 
 export interface IPostMetadata {
   post_id: number;
   user_handle: string;
+
   hidden: 0 | 1; // Not boolean because dexie doesn't support booleans for indexes
+
   hidden_updated_at?: number;
 }
 
 export interface InstanceData {
+  data: FederatedInstances;
   domain: string;
   updated: Date;
-  data: FederatedInstances;
 }
 
 export const OAppThemeType = {
@@ -24,9 +37,32 @@ export const OAppThemeType = {
   Mint: "mint",
   Dracula: "dracula",
   Tangerine: "tangerine",
+  Sunset: "sunset",
+  Outrun: "outrun",
 } as const;
 
 export type AppThemeType = (typeof OAppThemeType)[keyof typeof OAppThemeType];
+
+export const OCommentsThemeType = {
+  Rainbow: "rainbow",
+  UnoReverse: "uno-reverse",
+  Pastel: "pastel",
+  Mauve: "mauve",
+  Electric: "electric",
+  Citrus: "citrus",
+  Blush: "blush",
+} as const;
+
+export type CommentsThemeType =
+  (typeof OCommentsThemeType)[keyof typeof OCommentsThemeType];
+
+export const OVotesThemeType = {
+  Lemmy: "lemmy",
+  Reddit: "reddit",
+} as const;
+
+export type VotesThemeType =
+  (typeof OVotesThemeType)[keyof typeof OVotesThemeType];
 
 export const OPostAppearanceType = {
   Compact: "compact",
@@ -60,8 +96,9 @@ export type CompactThumbnailSizeType =
   (typeof OCompactThumbnailSizeType)[keyof typeof OCompactThumbnailSizeType];
 
 export const OCommentThreadCollapse = {
-  Always: "always",
   Never: "never",
+  RootOnly: "root_only",
+  All: "all",
 } as const;
 
 export type CommentThreadCollapse =
@@ -72,15 +109,10 @@ export const OPostBlurNsfw = {
   Never: "never",
 } as const;
 
-export const OCommentDefaultSort: Record<string, CommentSortType> = {
-  Hot: "Hot",
-  Top: "Top",
-  New: "New",
-  Controversial: "Controversial",
-  Old: "Old",
-} as const;
-
 export type CommentDefaultSort = CommentSortType;
+export const OCommentDefaultSort = zipObject(COMMENT_SORTS, COMMENT_SORTS);
+
+export const OSortType = zipObject(ALL_POST_SORTS, ALL_POST_SORTS);
 
 export type PostBlurNsfwType =
   (typeof OPostBlurNsfw)[keyof typeof OPostBlurNsfw];
@@ -143,6 +175,15 @@ export const OLinkHandlerType = {
   InApp: "in-app",
 } as const;
 
+export type ShowSubscribedIcon =
+  (typeof OShowSubscribedIcon)[keyof typeof OShowSubscribedIcon];
+
+export const OShowSubscribedIcon = {
+  Never: "never",
+  OnlyAllLocal: "all-local",
+  Everywhere: "everywhere",
+} as const;
+
 export type DefaultFeedType =
   | {
       type:
@@ -194,6 +235,15 @@ export const OTapToCollapseType = {
   Neither: "neither",
 } as const;
 
+export type AutoplayMediaType =
+  (typeof OAutoplayMediaType)[keyof typeof OAutoplayMediaType];
+
+export const OAutoplayMediaType = {
+  WifiOnly: "wifi-only",
+  Always: "always",
+  Never: "never",
+} as const;
+
 export type ProfileLabelType =
   (typeof OProfileLabelType)[keyof typeof OProfileLabelType];
 
@@ -242,48 +292,198 @@ export type SwipeAction =
 export type SwipeDirection = "farStart" | "start" | "end" | "farEnd";
 export type SwipeActions = Record<SwipeDirection, SwipeAction>;
 
-export type SettingValueTypes = {
+type Provider = "redgifs";
+
+interface ProviderData<Name extends string, Data> {
+  name: Name;
+
+  data: Data;
+}
+
+export type RedgifsProvider = ProviderData<"redgifs", { token: string }>;
+
+type ProvidersData = RedgifsProvider;
+
+export interface UserTag {
+  handle: string;
+
+  downvotes: number;
+  upvotes: number;
+
+  text?: string;
+
+  color?: string;
+
+  /**
+   * The URL of the Lemmy post or comment this tag was created from.
+   * (Will only be set if `saveSource` is enabled.)
+   */
+  sourceUrl?: string;
+}
+
+export const OPostCommentShareType = {
+  Local: "local",
+  Community: "community",
+  ApId: "ap-id",
+  Ask: "ask",
+} as const;
+
+export type PostCommentShareType =
+  (typeof OPostCommentShareType)[keyof typeof OPostCommentShareType];
+
+/**
+
+/**
+ * Global settings, loaded once at startup
+ */
+export interface GlobalSettingValueTypes {
+  always_show_author: boolean;
+  always_use_reader_mode: boolean;
+  auto_hide_read: boolean;
+  autoplay_media: AutoplayMediaType;
+  blur_nsfw: PostBlurNsfwType;
   collapse_comment_threads: CommentThreadCollapse;
+  comments_theme: CommentsThemeType;
+  community_at_top: boolean;
+  compact_show_self_post_thumbnails: boolean;
+  compact_show_voting_buttons: boolean;
+  compact_thumbnail_position_type: CompactThumbnailPositionType;
+  compact_thumbnail_size: CompactThumbnailSizeType;
+  default_comment_sort: CommentDefaultSort;
+  default_post_sort: PostSortType;
+  default_share: PostCommentShareType;
+  disable_auto_hide_in_communities: boolean;
+  disable_marking_posts_read: boolean;
+  embed_crossposts: boolean;
+  embed_external_media: boolean;
+  enable_haptic_feedback: boolean;
+  filtered_keywords: string[];
+  filtered_websites: string[];
+  hide_alt_text: boolean;
+  highlight_new_account: boolean;
+  infinite_scrolling: boolean;
+  jump_button_position: JumpButtonPositionType;
+  large_show_voting_buttons: boolean;
+  link_handler: LinkHandlerType;
+  mark_read_on_scroll: boolean;
+  never_show_read_posts: boolean;
+  no_subscribed_in_feed: boolean;
+  post_appearance_type: PostAppearanceType;
+  prefer_native_apps: boolean;
+  profile_label: ProfileLabelType;
+  quick_switch_dark_mode: boolean;
+  remember_community_comment_sort: boolean;
+  remember_community_post_sort: boolean;
+  remember_post_appearance_type: boolean;
+  show_collapsed_comment: boolean;
+  show_comment_images: boolean;
+  show_community_icons: boolean;
+  show_controls_on_open: boolean;
+  show_hidden_in_communities: boolean;
+  show_hide_read_button: boolean;
+  show_jump_button: boolean;
+  subscribed_icon: ShowSubscribedIcon;
+  tags_enabled: boolean;
+  tags_hide_instance: boolean;
+  tags_save_source: boolean;
+  tags_track_votes: boolean;
+  tap_to_collapse: TapToCollapseType;
+  thumbnailinator_enabled: boolean;
+  touch_friendly_links: boolean;
+  upvote_on_save: boolean;
   user_instance_url_display: InstanceUrlDisplayMode;
   vote_display_mode: VoteDisplayMode;
-  profile_label: ProfileLabelType;
-  post_appearance_type: PostAppearanceType;
-  compact_thumbnail_position_type: CompactThumbnailPositionType;
-  compact_show_voting_buttons: boolean;
-  compact_thumbnail_size: CompactThumbnailSizeType;
-  blur_nsfw: PostBlurNsfwType;
-  favorite_communities: string[];
-  default_comment_sort: CommentDefaultSort;
-  disable_marking_posts_read: boolean;
-  mark_read_on_scroll: boolean;
-  show_hide_read_button: boolean;
-  auto_hide_read: boolean;
-  disable_auto_hide_in_communities: boolean;
-  gesture_swipe_post: SwipeActions;
-  gesture_swipe_comment: SwipeActions;
-  gesture_swipe_inbox: SwipeActions;
+  votes_theme: VotesThemeType;
+}
+
+/**
+ * Dynamic settings, can change per community and/or user
+ */
+interface DynamicSettingValueTypes {
+  default_comment_sort_by_feed: CommentDefaultSort;
+  default_feed: DefaultFeedType;
+  default_post_sort_by_feed: PostSortType;
   disable_left_swipes: boolean;
   disable_right_swipes: boolean;
-  enable_haptic_feedback: boolean;
-  link_handler: LinkHandlerType;
-  show_jump_button: boolean;
-  jump_button_position: JumpButtonPositionType;
-  tap_to_collapse: TapToCollapseType;
-  filtered_keywords: string[];
-  highlight_new_account: boolean;
-  default_feed: DefaultFeedType;
-  touch_friendly_links: boolean;
-  show_comment_images: boolean;
-  long_swipe_trigger_point: LongSwipeTriggerPointType;
+  favorite_communities: string[];
+  gesture_swipe_comment: SwipeActions;
+  gesture_swipe_inbox: SwipeActions;
+  gesture_swipe_post: SwipeActions;
   has_presented_block_nsfw_tip: boolean;
-  no_subscribed_in_feed: boolean;
-};
+  long_swipe_trigger_point: LongSwipeTriggerPointType;
+  migration_links: string[];
+}
+
+export interface SettingValueTypes
+  extends GlobalSettingValueTypes,
+    DynamicSettingValueTypes {}
+
+export const ALL_GLOBAL_SETTINGS = arrayOfAll<keyof GlobalSettingValueTypes>()([
+  "always_show_author",
+  "always_use_reader_mode",
+  "auto_hide_read",
+  "autoplay_media",
+  "blur_nsfw",
+  "collapse_comment_threads",
+  "comments_theme",
+  "community_at_top",
+  "compact_show_self_post_thumbnails",
+  "compact_show_voting_buttons",
+  "compact_thumbnail_position_type",
+  "compact_thumbnail_size",
+  "default_comment_sort",
+  "default_post_sort",
+  "disable_auto_hide_in_communities",
+  "disable_marking_posts_read",
+  "embed_crossposts",
+  "embed_external_media",
+  "enable_haptic_feedback",
+  "filtered_keywords",
+  "filtered_websites",
+  "highlight_new_account",
+  "infinite_scrolling",
+  "jump_button_position",
+  "large_show_voting_buttons",
+  "link_handler",
+  "mark_read_on_scroll",
+  "no_subscribed_in_feed",
+  "post_appearance_type",
+  "prefer_native_apps",
+  "profile_label",
+  "quick_switch_dark_mode",
+  "remember_community_comment_sort",
+  "remember_community_post_sort",
+  "remember_post_appearance_type",
+  "show_collapsed_comment",
+  "show_comment_images",
+  "show_community_icons",
+  "show_hidden_in_communities",
+  "show_hide_read_button",
+  "show_jump_button",
+  "subscribed_icon",
+  "tags_enabled",
+  "tags_hide_instance",
+  "tags_save_source",
+  "tags_track_votes",
+  "tap_to_collapse",
+  "thumbnailinator_enabled",
+  "touch_friendly_links",
+  "upvote_on_save",
+  "user_instance_url_display",
+  "vote_display_mode",
+  "never_show_read_posts",
+  "votes_theme",
+  "hide_alt_text",
+  "show_controls_on_open",
+  "default_share",
+]);
 
 export interface ISettingItem<T extends keyof SettingValueTypes> {
   key: T;
   value: SettingValueTypes[T];
-  user_handle: string;
+
   community: string;
+  user_handle: string;
 }
 
 export const CompoundKeys = {
@@ -300,6 +500,8 @@ export class WefwefDB extends Dexie {
   postMetadatas!: Table<IPostMetadata, number>;
   settings!: Table<ISettingItem<keyof SettingValueTypes>, string>;
   cachedFederatedInstanceData!: Table<InstanceData, number>;
+  providers!: Table<ProvidersData, Provider>;
+  userTags!: Table<UserTag, number>;
 
   constructor() {
     super("WefwefDB");
@@ -389,6 +591,111 @@ export class WefwefDB extends Dexie {
         await this.setSetting("gesture_swipe_inbox", gestures);
       })();
     });
+
+    this.version(6).upgrade(async () => {
+      // Upgrade collapse comment threads "always" => "root_only"
+      await (async () => {
+        let default_collapse = await this.getSetting(
+          "collapse_comment_threads",
+        );
+
+        if (!default_collapse) return;
+        if ((default_collapse as string) === "always")
+          default_collapse = "root_only";
+
+        await this.setSetting("collapse_comment_threads", default_collapse);
+      })();
+    });
+
+    this.version(7).stores({
+      postMetadatas: `
+        ++,
+        ${CompoundKeys.postMetadata.post_id_and_user_handle},
+        ${CompoundKeys.postMetadata.user_handle_and_hidden},
+        post_id,
+        user_handle,
+        hidden,
+        hidden_updated_at
+      `,
+      settings: `
+        ++,
+        key,
+        ${CompoundKeys.settings.key_and_user_handle_and_community},
+        value,
+        user_handle,
+        community
+      `,
+      cachedFederatedInstanceData: `
+        ++id,
+        &domain,
+        updated
+      `,
+      providers: `
+        ++,
+        &name,
+        data
+      `,
+    });
+
+    this.version(8).upgrade(async () => {
+      await this.settings
+        .where("key")
+        .equals("remember_community_sort")
+        .modify({ key: "remember_community_post_sort" });
+    });
+
+    this.version(9).stores({
+      postMetadatas: `
+        ++,
+        ${CompoundKeys.postMetadata.post_id_and_user_handle},
+        ${CompoundKeys.postMetadata.user_handle_and_hidden},
+        post_id,
+        user_handle,
+        hidden,
+        hidden_updated_at
+      `,
+      settings: `
+        ++,
+        key,
+        ${CompoundKeys.settings.key_and_user_handle_and_community},
+        value,
+        user_handle,
+        community
+      `,
+      cachedFederatedInstanceData: `
+        ++id,
+        &domain,
+        updated
+      `,
+      providers: `
+        ++,
+        &name,
+        data
+      `,
+      userTags: `
+        ++,
+        &handle
+      `,
+    });
+  }
+
+  /*
+   * Providers
+   */
+  async getProvider(providerName: ProvidersData["name"]) {
+    return await this.providers.where("name").equals(providerName).first();
+  }
+
+  async setProvider(payload: ProvidersData) {
+    return await this.transaction("rw", this.providers, async () => {
+      await this.providers.where("name").equals(payload.name).delete();
+
+      await this.providers.put(payload);
+    });
+  }
+
+  async resetProviders() {
+    return await this.providers.clear();
   }
 
   /*
@@ -469,7 +776,7 @@ export class WefwefDB extends Dexie {
 
     return await this.postMetadatas
       .where("hidden_updated_at")
-      .below(lastPageLastEntry.hidden_updated_at)
+      .below(lastPageLastEntry?.hidden_updated_at)
       .reverse()
       .filter(filterFn)
       .limit(limit)
@@ -525,12 +832,47 @@ export class WefwefDB extends Dexie {
       const item = await query.first();
 
       if (item) {
-        await query.modify(payload);
+        await query.modify({ ...payload });
         return;
       }
 
       await this.cachedFederatedInstanceData.add(payload);
     });
+  }
+
+  async fetchTagsForHandles(handles: string[]) {
+    return await this.userTags.where("handle").anyOf(handles).toArray();
+  }
+
+  async updateTag(tag: UserTag) {
+    return await this.transaction("rw", this.userTags, async () => {
+      await this.userTags.where("handle").equals(tag.handle).delete();
+
+      await this.userTags.put(tag);
+    });
+  }
+
+  async removeTag(tag: UserTag) {
+    return await this.transaction("rw", this.userTags, async () => {
+      await this.userTags.where("handle").equals(tag.handle).delete();
+    });
+  }
+
+  async getUserTagsPaginated(
+    page: number,
+    limit: number,
+    filterTagged: boolean,
+  ) {
+    return await this.userTags
+      .orderBy("handle")
+      .filter(({ text }) => (filterTagged ? !!text : true))
+      .offset((page - 1) * limit)
+      .limit(limit)
+      .toArray();
+  }
+
+  async resetTags() {
+    return await this.userTags.clear();
   }
 
   /*
@@ -581,10 +923,33 @@ export class WefwefDB extends Dexie {
     });
   }
 
+  /**
+   * Convenience method for app startup
+   *
+   * @returns The resulting array will always have the same length as the given array of keys.
+   * Every position in the given key array will correspond to the same position in the array of results.
+   *
+   * `undefined` will be returned for those keys that do not exist in the database.
+   */
+  async getSettings<T extends keyof SettingValueTypes>(keys: T[]) {
+    const result = await this.settings
+      .where(CompoundKeys.settings.key_and_user_handle_and_community)
+      .anyOf(keys.map((key) => [key, "", ""]))
+      .toArray();
+
+    const settingsMap = new Map(result.map((item) => [item.key, item.value]));
+
+    return keys.map((k) => settingsMap.get(k));
+  }
+
   async setSetting<T extends keyof SettingValueTypes>(
     key: T,
     value: SettingValueTypes[T],
     specificity?: {
+      /**
+       * Note: user_handle can be a user handle (`aeharding@lemmy.world`)
+       * or an instance handle (`lemmy.world`) when in guest mode
+       */
       user_handle?: string;
       community?: string;
     },

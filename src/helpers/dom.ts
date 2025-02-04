@@ -1,3 +1,5 @@
+import { KeyboardEvent } from "react";
+
 import { ua } from "./device";
 
 export const useScrollIntoViewWorkaround = ua.getEngine().name === "WebKit";
@@ -68,6 +70,15 @@ export function calculateScrollTop(
   const elementBottom =
     elementRect.bottom - parentRect.top + scrollPaddingBottomValue;
 
+  // Adjust scroll top for tall elements
+  const maxVisibleHeight =
+    parentScroll.offsetHeight -
+    scrollPaddingTopValue -
+    scrollPaddingBottomValue;
+  if (elementBottom - elementTop > maxVisibleHeight) {
+    return parentScroll.scrollTop + elementTop;
+  }
+
   if (elementTop < 0) {
     return parentScroll.scrollTop + elementTop;
   }
@@ -84,8 +95,9 @@ export function getScrollParent(
 ): HTMLElement | undefined {
   if (!node) return;
 
-  if (
-    node.tagName === "ION-CONTENT" ||
+  if (node.tagName === "ION-CONTENT") {
+    return node.shadowRoot?.querySelector("[part=scroll]") ?? undefined;
+  } else if (
     node.classList.contains("ion-content-scroll-host") ||
     node.classList.contains("virtual-scroller")
   ) {
@@ -113,4 +125,24 @@ export function getOffsetTop(
   }
 
   return cumulative;
+}
+
+export function getSelectionHtml(selection: Selection): string {
+  let html = "";
+
+  if (selection.rangeCount) {
+    const container = document.createElement("div");
+    for (let i = 0, len = selection.rangeCount; i < len; ++i) {
+      container.appendChild(selection.getRangeAt(i).cloneContents());
+    }
+    html = container.innerHTML;
+  }
+
+  return html;
+}
+
+export function blurOnEnter(e: KeyboardEvent) {
+  if (e.key !== "Enter") return;
+
+  if (e.target instanceof HTMLElement) e.target.blur();
 }

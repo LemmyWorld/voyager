@@ -1,22 +1,28 @@
-import { IonLabel, IonList, IonToggle } from "@ionic/react";
-import { InsetIonItem } from "../../user/Profile";
-import { useAppSelector, useAppDispatch } from "../../../store";
-import {
-  setCompactThumbnailSize,
-  setShowVotingButtons,
-  setThumbnailPosition,
-} from "../settingsSlice";
+import { IonItem, IonLabel, IonList, IonToggle } from "@ionic/react";
+
+import { ListHeader } from "#/features/settings/shared/formatting";
+import SettingSelector from "#/features/settings/shared/SettingSelector";
 import {
   OCompactThumbnailPositionType,
   OCompactThumbnailSizeType,
-} from "../../../services/db";
-import { ListHeader } from "../shared/formatting";
-import SettingSelector from "../shared/SettingSelector";
+} from "#/services/db";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import {
+  setCompactShowSelfPostThumbnails,
+  setCompactShowVotingButtons,
+  setCompactThumbnailSize,
+  setThumbnailPosition,
+} from "../settingsSlice";
 
 export default function CompactSettings() {
   const dispatch = useAppDispatch();
-  const { thumbnailsPosition, showVotingButtons, thumbnailSize } =
-    useAppSelector((state) => state.settings.appearance.compact);
+  const {
+    thumbnailsPosition,
+    showVotingButtons,
+    thumbnailSize,
+    showSelfPostThumbnails,
+  } = useAppSelector((state) => state.settings.appearance.compact);
 
   return (
     <>
@@ -39,15 +45,26 @@ export default function CompactSettings() {
           setSelected={setThumbnailPosition}
           options={OCompactThumbnailPositionType}
         />
-        <InsetIonItem>
-          <IonLabel>Show Voting Buttons</IonLabel>
+        <IonItem>
           <IonToggle
             checked={showVotingButtons}
             onIonChange={(e) =>
-              dispatch(setShowVotingButtons(e.detail.checked ? true : false))
+              dispatch(setCompactShowVotingButtons(!!e.detail.checked))
             }
-          />
-        </InsetIonItem>
+          >
+            Show Voting Buttons
+          </IonToggle>
+        </IonItem>
+        <IonItem>
+          <IonToggle
+            checked={showSelfPostThumbnails}
+            onIonChange={(e) =>
+              dispatch(setCompactShowSelfPostThumbnails(!!e.detail.checked))
+            }
+          >
+            Show Self Post Thumbnails
+          </IonToggle>
+        </IonItem>
       </IonList>
     </>
   );

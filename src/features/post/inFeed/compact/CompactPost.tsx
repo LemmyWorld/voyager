@@ -1,155 +1,157 @@
-import styled from "@emotion/styled";
-import { css } from "@emotion/react";
+import { useContext } from "react";
+
+import { PageTypeContext } from "#/features/feed/PageTypeContext";
+import CommunityLink from "#/features/labels/links/CommunityLink";
+import PersonLink from "#/features/labels/links/PersonLink";
+import Nsfw, { isNsfw } from "#/features/labels/Nsfw";
+import Save from "#/features/labels/Save";
+import ModeratableItem, {
+  ModeratableItemBannerOutlet,
+} from "#/features/moderation/ModeratableItem";
+import ModqueueItemActions from "#/features/moderation/ModqueueItemActions";
+import ActionsContainer from "#/features/post/actions/ActionsContainer";
+import CompactCrosspost from "#/features/post/crosspost/CompactCrosspost";
+import AnnouncementIcon from "#/features/post/detail/AnnouncementIcon";
+import MoreActions from "#/features/post/shared/MoreActions";
+import MoreModActions from "#/features/post/shared/MoreModAction";
+import useCrosspostUrl from "#/features/post/shared/useCrosspostUrl";
+import { VoteButton } from "#/features/post/shared/VoteButton";
+import InlineMarkdown from "#/features/shared/markdown/InlineMarkdown";
+import { cx, sv } from "#/helpers/css";
+import { isUrlImage, parseUrlForDisplay } from "#/helpers/url";
+import { useInModqueue } from "#/routes/pages/shared/ModqueuePage";
+import { useAppSelector } from "#/store";
+
 import { PostProps } from "../Post";
-import Thumbnail from "./Thumbnail";
-import { maxWidthCss } from "../../../shared/AppContent";
 import PreviewStats from "../PreviewStats";
-import MoreActions from "../../shared/MoreActions";
-import { megaphone } from "ionicons/icons";
-import PersonLink from "../../../labels/links/PersonLink";
-import { AnnouncementIcon } from "../../detail/PostDetail";
-import CommunityLink from "../../../labels/links/CommunityLink";
-import { VoteButton } from "../../shared/VoteButton";
-import Save from "../../../labels/Save";
-import Nsfw, { isNsfw } from "../../../labels/Nsfw";
-import { useAppSelector } from "../../../../store";
-import { useMemo } from "react";
-import InlineMarkdown from "../../../shared/InlineMarkdown";
+import Thumbnail from "./Thumbnail";
 
-const Container = styled.div`
-  display: flex;
-  align-items: flex-start;
-  padding: 12px;
-  gap: 12px;
-  line-height: 1.15;
+import styles from "./CompactPost.module.css";
 
-  position: relative;
-
-  ${maxWidthCss}
-`;
-
-const Content = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-
-  min-width: 0;
-  flex: 1;
-`;
-
-const Title = styled.span<{ isRead: boolean }>`
-  font-size: 0.9375em;
-
-  ${({ isRead }) =>
-    isRead &&
-    css`
-      color: var(--read-color);
-    `}
-`;
-
-const Aside = styled.div<{ isRead: boolean }>`
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5em;
-
-  color: var(--ion-color-text-aside);
-  font-size: 0.8em;
-
-  ${({ isRead }) =>
-    isRead &&
-    css`
-      color: var(--read-color);
-    `}
-`;
-
-const From = styled.div`
-  white-space: nowrap;
-
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const Actions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-
-  white-space: nowrap;
-`;
-
-const StyledMoreActions = styled(MoreActions)`
-  font-size: 1.3rem;
-
-  margin: -0.5rem;
-  padding: 0.5rem;
-
-  color: var(--ion-color-text-aside);
-`;
-
-const EndDetails = styled.div`
-  display: flex;
-  flex-direction: column;
-  font-size: 1.2rem;
-
-  color: var(--ion-color-text-aside);
-
-  margin-left: auto;
-`;
-
-export default function CompactPost({ post, communityMode }: PostProps) {
+export default function CompactPost({ post }: PostProps) {
+  const alwaysShowAuthor = useAppSelector(
+    (state) => state.settings.appearance.posts.alwaysShowAuthor,
+  );
   const compactThumbnailPositionType = useAppSelector(
     (state) => state.settings.appearance.compact.thumbnailsPosition,
   );
-
   const compactShowVotingButtons = useAppSelector(
     (state) => state.settings.appearance.compact.showVotingButtons,
   );
+  const showCommunityAtTop = useAppSelector(
+    (state) => state.settings.appearance.posts.communityAtTop,
+  );
+
+  const crosspostUrl = useCrosspostUrl(post);
+
+  const inModqueue = useInModqueue();
+
+  const inCommunityFeed = useContext(PageTypeContext) === "community";
 
   const hasBeenRead: boolean =
     useAppSelector((state) => state.post.postReadById[post.post.id]) ||
     post.read;
-  const nsfw = useMemo(() => isNsfw(post), [post]);
+
+  const [domain] =
+    post.post.url && !isUrlImage(post.post.url, post.post.url_content_type)
+      ? parseUrlForDisplay(post.post.url)
+      : [];
 
   return (
-    <Container>
-      {compactThumbnailPositionType === "left" && <Thumbnail post={post} />}
-      <Content>
-        <Title isRead={hasBeenRead}>
-          <InlineMarkdown>{post.post.name}</InlineMarkdown> {nsfw && <Nsfw />}
-        </Title>
-        <Aside isRead={hasBeenRead}>
-          <From>
-            {post.post.featured_community || post.post.featured_local ? (
-              <AnnouncementIcon icon={megaphone} />
-            ) : undefined}
-            {communityMode ? (
-              <PersonLink
-                person={post.creator}
-                showInstanceWhenRemote
-                prefix="by"
-              />
-            ) : (
-              <CommunityLink
-                community={post.community}
-                subscribed={post.subscribed}
-              />
+    <ModeratableItem itemView={post}>
+      <div className={cx(styles.container, hasBeenRead && styles.read)}>
+        <ModeratableItemBannerOutlet />
+
+        <div className={styles.contents}>
+          {compactThumbnailPositionType === "left" && <Thumbnail post={post} />}
+          <div className={styles.content}>
+            {(inModqueue || showCommunityAtTop) && !inCommunityFeed && (
+              <div className={styles.aside} style={sv({ color: "inherit" })}>
+                <CommunityLink
+                  community={post.community}
+                  subscribed={post.subscribed}
+                  showInstanceWhenRemote
+                  tinyIcon
+                />
+              </div>
             )}
-          </From>
-          <Actions>
-            <PreviewStats post={post} />
-            <StyledMoreActions post={post} onFeed />
-          </Actions>
-        </Aside>
-      </Content>
-      {compactThumbnailPositionType === "right" && <Thumbnail post={post} />}
-      {compactShowVotingButtons === true && (
-        <EndDetails>
-          <VoteButton type="up" postId={post.post.id} />
-          <VoteButton type="down" postId={post.post.id} />
-        </EndDetails>
-      )}
-      <Save type="post" id={post.post.id} />
-    </Container>
+            <span className={styles.title}>
+              <InlineMarkdown>{post.post.name}</InlineMarkdown>{" "}
+              {domain && (
+                <>
+                  <span className={styles.domain}>
+                    (<span>{domain}</span>)
+                  </span>{" "}
+                </>
+              )}
+              {isNsfw(post) && <Nsfw />}
+            </span>
+            <div className={styles.aside}>
+              <div className={styles.from}>
+                {post.post.featured_community || post.post.featured_local ? (
+                  <AnnouncementIcon />
+                ) : undefined}
+                {inCommunityFeed || inModqueue ? (
+                  <PersonLink
+                    person={post.creator}
+                    showInstanceWhenRemote
+                    prefix="by"
+                    sourceUrl={post.post.ap_id}
+                  />
+                ) : (
+                  <>
+                    {!showCommunityAtTop && (
+                      <CommunityLink
+                        community={post.community}
+                        subscribed={post.subscribed}
+                        tinyIcon
+                      />
+                    )}
+                    {alwaysShowAuthor && (
+                      <>
+                        {" "}
+                        <PersonLink
+                          person={post.creator}
+                          prefix="by"
+                          sourceUrl={post.post.ap_id}
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+              <ActionsContainer>
+                <PreviewStats post={post} />
+                {inModqueue ? (
+                  <ModqueueItemActions itemView={post} />
+                ) : (
+                  <MoreModActions
+                    className={styles.styledModActions}
+                    post={post}
+                    solidIcon
+                  />
+                )}
+                <MoreActions className={styles.styledMoreActions} post={post} />
+              </ActionsContainer>
+            </div>
+            {crosspostUrl && (
+              <div>
+                <CompactCrosspost post={post} url={crosspostUrl} />
+              </div>
+            )}
+          </div>
+          {compactThumbnailPositionType === "right" && (
+            <Thumbnail post={post} />
+          )}
+          {compactShowVotingButtons === true && (
+            <div className={styles.endDetails}>
+              <VoteButton type="up" post={post} />
+              <VoteButton type="down" post={post} />
+            </div>
+          )}
+          <Save type="post" id={post.post.id} />
+        </div>
+      </div>
+    </ModeratableItem>
   );
 }

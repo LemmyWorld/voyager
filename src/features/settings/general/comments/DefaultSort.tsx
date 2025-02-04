@@ -1,26 +1,24 @@
-import { useAppSelector } from "../../../../store";
-import { OCommentDefaultSort } from "../../../../services/db";
+import { mapValues } from "es-toolkit";
+
+import { getSortIcon } from "#/features/comment/CommentSort";
+import SettingSelector from "#/features/settings/shared/SettingSelector";
+import { OCommentDefaultSort } from "#/services/db";
+import { useAppSelector } from "#/store";
+
 import { setDefaultCommentSort } from "../../settingsSlice";
-import SettingSelector from "../../shared/SettingSelector";
-import { getSortIcon } from "../../../comment/CommentSort";
-import { mapValues } from "lodash";
-import useSupported from "../../../../helpers/useSupported";
 
 export default function DefaultSort() {
   const defaultCommentSort = useAppSelector(
     (state) => state.settings.general.comments.sort,
   );
-  const newSorts = useSupported("v0.19 Sorts");
-
-  const options = { ...OCommentDefaultSort };
-  if (!newSorts) delete options["Controversial"];
 
   return (
     <SettingSelector
       title="Default Sort"
+      openTitle="Default Comments Sort..."
       selected={defaultCommentSort}
       setSelected={setDefaultCommentSort}
-      options={options}
+      options={OCommentDefaultSort}
       optionIcons={mapValues(OCommentDefaultSort, getSortIcon)}
     />
   );

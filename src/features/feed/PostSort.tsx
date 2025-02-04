@@ -1,11 +1,11 @@
-import type { IonActionSheetCustomEvent } from "@ionic/core";
 import {
   ActionSheetButton,
-  IonActionSheet,
   IonButton,
   IonIcon,
+  useIonActionSheet,
 } from "@ionic/react";
 import { OverlayEventDetail } from "@ionic/react/dist/types/components/react-component-lib/interfaces";
+import { startCase } from "es-toolkit";
 import {
   arrowUpCircleOutline,
   barChartOutline,
@@ -19,15 +19,13 @@ import {
   trendingUpOutline,
   trophyOutline,
 } from "ionicons/icons";
+import { PostSortType } from "lemmy-js-client";
+import { useContext } from "react";
 
-import { useAppDispatch, useAppSelector } from "../../store";
-import { updateSortType } from "../post/postSlice";
-import { useContext, useState } from "react";
-import { startCase } from "lodash";
-import { SortType } from "lemmy-js-client";
-import { scrollUpIfNeeded } from "../../helpers/scrollUpIfNeeded";
-import { AppContext } from "../auth/AppContext";
-import useSupported, { is019Sort } from "../../helpers/useSupported";
+import { AppContext } from "#/features/auth/AppContext";
+import { arrayOfAll } from "#/helpers/array";
+import { scrollUpIfNeeded } from "#/helpers/scrollUpIfNeeded";
+
 import {
   calendarNineMonths,
   calendarSingleDay,
@@ -40,9 +38,31 @@ import {
   clockBadgeTwelve,
 } from "../icons";
 
-type ExtendedSortType = SortType | "Top";
+type ExtendedSortType = PostSortType | "Top";
 
-export const POST_SORTS = [
+export const ALL_POST_SORTS = arrayOfAll<PostSortType>()([
+  "Active",
+  "Hot",
+  "New",
+  "Old",
+  "TopDay",
+  "TopWeek",
+  "TopMonth",
+  "TopYear",
+  "TopAll",
+  "MostComments",
+  "NewComments",
+  "TopHour",
+  "TopSixHour",
+  "TopTwelveHour",
+  "TopThreeMonths",
+  "TopSixMonths",
+  "TopNineMonths",
+  "Controversial",
+  "Scaled",
+]);
+
+const POST_SORTS = [
   "Active",
   "Hot",
   "Top",
@@ -53,7 +73,7 @@ export const POST_SORTS = [
   "NewComments",
 ] as const;
 
-export const TOP_POST_SORTS = [
+const TOP_POST_SORTS = [
   "TopHour",
   "TopSixHour",
   "TopTwelveHour",
@@ -75,7 +95,7 @@ const BUTTONS: ActionSheetButton<ExtendedSortType>[] = POST_SORTS.map(
   }),
 );
 
-const TOP_BUTTONS: ActionSheetButton<SortType>[] = TOP_POST_SORTS.map(
+const TOP_BUTTONS: ActionSheetButton<PostSortType>[] = TOP_POST_SORTS.map(
   (sortType) => ({
     text: formatTopLabel(sortType),
     data: sortType,
@@ -83,82 +103,86 @@ const TOP_BUTTONS: ActionSheetButton<SortType>[] = TOP_POST_SORTS.map(
   }),
 );
 
-export default function PostSort() {
-  const dispatch = useAppDispatch();
-  const sort = useAppSelector((state) => state.post.sort);
-  const [open, setOpen] = useState(false);
-  const [topOpen, setTopOpen] = useState(false);
+interface PostSortProps {
+  sort: PostSortType | undefined;
+  setSort: (sort: PostSortType) => void;
+}
+
+export default function PostSort({ sort, setSort }: PostSortProps) {
   const { activePageRef } = useContext(AppContext);
-  const newSorts = useSupported("v0.19 Sorts");
 
-  const supportedSortButtons = newSorts
-    ? BUTTONS
-    : BUTTONS.filter(({ data }) => !is019Sort(data));
-
-  const supportedTopSortButtons = newSorts
-    ? TOP_BUTTONS
-    : TOP_BUTTONS.filter(({ data }) => !is019Sort(data));
+  const present = useSelectPostSort((newValue) => {
+    setSort(newValue);
+    scrollUpIfNeeded(activePageRef?.current, 0, "auto");
+  });
 
   return (
-    <>
-      <IonButton fill="default" onClick={() => setOpen(true)}>
-        <IonIcon icon={getSortIcon(sort)} color="primary" />
-      </IonButton>
-      <IonActionSheet
-        cssClass="left-align-buttons"
-        isOpen={open}
-        onDidDismiss={() => setOpen(false)}
-        onWillDismiss={(
-          e: IonActionSheetCustomEvent<OverlayEventDetail<ExtendedSortType>>,
-        ) => {
-          if (e.detail.data === "Top") {
-            setTopOpen(true);
-            return;
-          }
-
-          if (e.detail.data) {
-            dispatch(updateSortType(e.detail.data));
-
-            scrollUpIfNeeded(activePageRef?.current, 0, "auto");
-          }
-        }}
-        header="Sort by..."
-        buttons={supportedSortButtons.map((b) => ({
-          ...b,
-          cssClass: b.data === "Top" ? "detail" : undefined,
-          text:
-            isTopSort(sort) && b.data === "Top"
-              ? `${b.text} (${formatTopLabel(sort)})`
-              : b.text,
-          role:
-            sort === b.data || (sort.startsWith("Top") && b.data === "Top")
-              ? "selected"
-              : undefined,
-        }))}
-      />
-      <IonActionSheet
-        cssClass="left-align-buttons"
-        isOpen={topOpen}
-        onDidDismiss={() => setTopOpen(false)}
-        onWillDismiss={(
-          e: IonActionSheetCustomEvent<OverlayEventDetail<SortType>>,
-        ) => {
-          if (e.detail.data) {
-            dispatch(updateSortType(e.detail.data));
-            scrollUpIfNeeded(activePageRef?.current, 0, "auto");
-          }
-        }}
-        header="Sort by Top for..."
-        buttons={supportedTopSortButtons.map((b) => ({
-          ...b,
-          role: sort === b.data ? "selected" : undefined,
-        }))}
-      />
-    </>
+    <IonButton onClick={() => sort && present(sort)}>
+      <IonIcon icon={sort ? getSortIcon(sort) : " "} slot="icon-only" />
+    </IonButton>
   );
 }
 
-function getSortIcon(sort: ExtendedSortType): string {
+interface Options {
+  title?: string;
+}
+
+export function useSelectPostSort(
+  onSelected: (sort: PostSortType) => void,
+  options?: Options,
+) {
+  const [presentInitialSortActionSheet] = useIonActionSheet();
+  const [presentTopSortActionSheet] = useIonActionSheet();
+
+  function present(sort: PostSortType) {
+    presentInitialSortActionSheet({
+      header: options?.title ?? "Sort by...",
+      cssClass: "left-align-buttons",
+      buttons: BUTTONS.map((b) => ({
+        ...b,
+        cssClass: b.data === "Top" ? "detail" : undefined,
+        text:
+          isTopSort(sort) && b.data === "Top"
+            ? `${b.text} (${formatTopLabel(sort)})`
+            : b.text,
+        role:
+          sort === b.data || (sort.startsWith("Top") && b.data === "Top")
+            ? "selected"
+            : undefined,
+      })),
+      onWillDismiss: (e: CustomEvent<OverlayEventDetail<ExtendedSortType>>) => {
+        if (e.detail.data === "Top") {
+          presentSelectTop(sort);
+          return;
+        }
+
+        if (e.detail.data) {
+          onSelected(e.detail.data);
+        }
+      },
+    });
+  }
+
+  function presentSelectTop(sort: PostSortType) {
+    presentTopSortActionSheet({
+      header: "Sort by Top for...",
+      cssClass: "left-align-buttons",
+      buttons: TOP_BUTTONS.map((b) => ({
+        ...b,
+        role: sort === b.data ? "selected" : undefined,
+      })),
+      onWillDismiss: (e: CustomEvent<OverlayEventDetail<PostSortType>>) => {
+        if (e.detail.data) {
+          onSelected(e.detail.data);
+        }
+      },
+    });
+  }
+
+  return present;
+}
+
+export function getSortIcon(sort: ExtendedSortType): string {
   switch (sort) {
     case "Hot":
       return flameOutline;
@@ -190,8 +214,6 @@ function getSortIcon(sort: ExtendedSortType): string {
       return barChartOutline;
     case "Old":
       return helpCircleOutline;
-
-    // lemmy v0.19 below
     case "Controversial":
       return skullOutline;
     case "Scaled":
@@ -205,7 +227,7 @@ function getSortIcon(sort: ExtendedSortType): string {
   }
 }
 
-function formatTopLabel(sort: (typeof TOP_POST_SORTS)[number]): string {
+export function formatTopLabel(sort: (typeof TOP_POST_SORTS)[number]): string {
   switch (sort) {
     case "TopHour":
       return "Hour";
@@ -232,6 +254,8 @@ function formatTopLabel(sort: (typeof TOP_POST_SORTS)[number]): string {
   }
 }
 
-function isTopSort(sort: SortType): sort is (typeof TOP_POST_SORTS)[number] {
+export function isTopSort(
+  sort: PostSortType,
+): sort is (typeof TOP_POST_SORTS)[number] {
   return (TOP_POST_SORTS as unknown as string[]).includes(sort as string);
 }

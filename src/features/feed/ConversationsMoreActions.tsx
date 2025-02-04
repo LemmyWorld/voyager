@@ -1,59 +1,48 @@
-import { IonActionSheet, IonButton, IonIcon, useIonRouter } from "@ionic/react";
-import {
-  ellipsisHorizontal,
-  personCircleOutline,
-  removeCircleOutline,
-} from "ionicons/icons";
-import { useBuildGeneralBrowseLink } from "../../helpers/routes";
-import { useParams } from "react-router";
-import { useUserDetails } from "../user/useUserDetails";
-import { useState } from "react";
+import { IonButton } from "@ionic/react";
+import { personCircleOutline } from "ionicons/icons";
+import { Person } from "lemmy-js-client";
 
-export default function ConversationsMoreActions() {
-  const [open, setOpen] = useState(false);
+import HeaderEllipsisIcon from "#/features/shared/HeaderEllipsisIcon";
+import usePresentUserActions from "#/features/user/usePresentUserActions";
+import { buildUserLink } from "#/helpers/appLinkBuilder";
+import { getHandle } from "#/helpers/lemmy";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+import { useOptimizedIonRouter } from "#/helpers/useOptimizedIonRouter";
 
+interface ConversationsMoreActionsProps {
+  person: Person | undefined;
+}
+
+export default function ConversationsMoreActions({
+  person,
+}: ConversationsMoreActionsProps) {
+  const presentUserActions = usePresentUserActions();
+  const router = useOptimizedIonRouter();
   const buildGeneralBrowseLink = useBuildGeneralBrowseLink();
-  const router = useIonRouter();
-
-  const { handle } = useParams<{ handle: string }>();
-  const { isBlocked, blockOrUnblock } = useUserDetails(handle);
 
   return (
     <>
       <IonButton
-        disabled={!handle}
-        fill="default"
-        onClick={() => setOpen(true)}
+        disabled={!person}
+        onClick={() => {
+          if (!person) return;
+
+          presentUserActions(person, {
+            hideMessageButton: true,
+            prependButtons: [
+              {
+                text: getHandle(person),
+                icon: personCircleOutline,
+                handler: () => {
+                  router.push(buildGeneralBrowseLink(buildUserLink(person)));
+                },
+              },
+            ],
+          });
+        }}
       >
-        <IonIcon icon={ellipsisHorizontal} color="primary" />
+        <HeaderEllipsisIcon slot="icon-only" />
       </IonButton>
-      <IonActionSheet
-        cssClass="left-align-buttons"
-        isOpen={open}
-        buttons={[
-          {
-            text: handle,
-            icon: personCircleOutline,
-            handler: () => {
-              router.push(buildGeneralBrowseLink(`/u/${handle}`));
-            },
-          },
-          {
-            text: !isBlocked ? "Block User" : "Unblock User",
-            data: "block",
-            role: !isBlocked ? "destructive" : undefined,
-            icon: removeCircleOutline,
-            handler: async () => {
-              blockOrUnblock();
-            },
-          },
-          {
-            text: "Cancel",
-            role: "cancel",
-          },
-        ]}
-        onDidDismiss={() => setOpen(false)}
-      />
     </>
   );
 }

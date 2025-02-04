@@ -1,6 +1,4 @@
-import { combineExtensions } from "micromark-util-combine-extensions";
-import { gfmStrikethrough } from "micromark-extension-gfm-strikethrough";
-import { gfmTable } from "micromark-extension-gfm-table";
+/// <reference types="remark-stringify" />
 import {
   gfmAutolinkLiteralFromMarkdown,
   gfmAutolinkLiteralToMarkdown,
@@ -10,44 +8,71 @@ import {
   gfmStrikethroughToMarkdown,
 } from "mdast-util-gfm-strikethrough";
 import { gfmTableFromMarkdown, gfmTableToMarkdown } from "mdast-util-gfm-table";
-import type { Options } from "remark-gfm";
+import { gfmStrikethrough } from "micromark-extension-gfm-strikethrough";
+import { gfmTable } from "micromark-extension-gfm-table";
+import { combineExtensions } from "micromark-util-combine-extensions";
+import { Settings } from "unified";
+
+interface Options {
+  connectedInstance: string;
+}
 
 export default function customRemarkGfm(
   this: import("unified").Processor,
-  options = {},
+  options: Options,
 ) {
   const data = this.data();
 
-  add("micromarkExtensions", gfm());
-  add("fromMarkdownExtensions", gfmFromMarkdown());
-  add("toMarkdownExtensions", gfmToMarkdown(options));
+  const micromarkExtensions =
+    data.micromarkExtensions || (data.micromarkExtensions = []);
+  const fromMarkdownExtensions =
+    data.fromMarkdownExtensions || (data.fromMarkdownExtensions = []);
+  const toMarkdownExtensions =
+    data.toMarkdownExtensions || (data.toMarkdownExtensions = []);
 
-  function add(field: string, value: unknown) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const list: any = data[field] ? data[field] : (data[field] = []);
-
-    list.push(value);
-  }
+  micromarkExtensions.push(gfm());
+  fromMarkdownExtensions.push(gfmFromMarkdown(options));
+  toMarkdownExtensions.push(gfmToMarkdown() as Settings);
 }
 
-function gfm(options?: Options) {
-  return combineExtensions([gfmStrikethrough(options), gfmTable]);
+function gfm() {
+  return combineExtensions([
+    gfmStrikethrough({ singleTilde: false }),
+    gfmTable(),
+  ]);
 }
 
-function gfmFromMarkdown() {
+function gfmFromMarkdown({ connectedInstance }: Options) {
   return [
-    gfmAutolinkLiteralFromMarkdown,
-    gfmStrikethroughFromMarkdown,
-    gfmTableFromMarkdown,
+    gfmAutolinkLiteralFromMarkdown({ connectedInstance }),
+    gfmStrikethroughFromMarkdown(),
+    gfmTableFromMarkdown(),
   ];
 }
 
-function gfmToMarkdown(options?: Options) {
+function gfmToMarkdown() {
   return {
     extensions: [
-      gfmAutolinkLiteralToMarkdown,
-      gfmStrikethroughToMarkdown,
-      gfmTableToMarkdown(options),
+      gfmAutolinkLiteralToMarkdown(),
+      gfmStrikethroughToMarkdown(),
+      gfmTableToMarkdown(),
     ],
   };
+}
+
+export function customRemarkStrikethrough(this: import("unified").Processor) {
+  const data = this.data();
+
+  const micromarkExtensions =
+    data.micromarkExtensions || (data.micromarkExtensions = []);
+  const fromMarkdownExtensions =
+    data.fromMarkdownExtensions || (data.fromMarkdownExtensions = []);
+  const toMarkdownExtensions =
+    data.toMarkdownExtensions || (data.toMarkdownExtensions = []);
+
+  micromarkExtensions.push(gfmStrikethrough({ singleTilde: false }));
+  fromMarkdownExtensions.push(gfmStrikethroughFromMarkdown());
+  toMarkdownExtensions.push({
+    extensions: [gfmStrikethroughToMarkdown()],
+  } as Settings);
 }

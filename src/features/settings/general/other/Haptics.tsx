@@ -1,8 +1,9 @@
-import { IonLabel, IonToggle } from "@ionic/react";
-import { InsetIonItem } from "../../../../pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../../store";
+import { IonItem, IonToggle } from "@ionic/react";
+
+import { isNative } from "#/helpers/device";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setEnableHapticFeedback } from "../../settingsSlice";
-import { isNative } from "../../../../helpers/device";
 
 export default function Haptics() {
   const dispatch = useAppDispatch();
@@ -14,12 +15,13 @@ export default function Haptics() {
   if (!isNative() && !("vibrate" in window.navigator)) return;
 
   return (
-    <InsetIonItem>
-      <IonLabel>Haptic Feedback</IonLabel>
+    <IonItem>
       <IonToggle
         checked={enableHapticFeedback}
         onIonChange={(e) => dispatch(setEnableHapticFeedback(e.detail.checked))}
-      />
-    </InsetIonItem>
+      >
+        Haptic Feedback
+      </IonToggle>
+    </IonItem>
   );
 }

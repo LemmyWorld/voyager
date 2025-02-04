@@ -1,16 +1,12 @@
-import { Dictionary, PayloadAction, createSlice } from "@reduxjs/toolkit";
+import { createSelector, createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { differenceBy, groupBy, sortBy, uniqBy } from "es-toolkit";
 import { GetUnreadCountResponse, PrivateMessageView } from "lemmy-js-client";
-import { AppDispatch, RootState } from "../../store";
-import {
-  clientSelector,
-  handleSelector,
-  jwtSelector,
-  logoutAccount,
-} from "../auth/authSlice";
+
+import { clientSelector, jwtSelector } from "#/features/auth/authSelectors";
+import { receivedUsers } from "#/features/user/userSlice";
+import { AppDispatch, RootState } from "#/store";
+
 import { InboxItemView } from "./InboxItem";
-import { differenceBy, uniqBy } from "lodash";
-import { receivedUsers } from "../user/userSlice";
-import { isLemmyError } from "../../helpers/lemmy";
 
 interface PostState {
   counts: {
@@ -19,7 +15,7 @@ interface PostState {
     replies: number;
   };
   lastUpdatedCounts: number;
-  readByInboxItemId: Dictionary<boolean>;
+  readByInboxItemId: Record<string, boolean>;
   messageSyncState: "init" | "syncing" | "synced";
   messages: PrivateMessageView[];
 }
@@ -62,6 +58,13 @@ export const inboxSlice = createSlice({
       state.readByInboxItemId[getInboxItemId(action.payload.item)] =
         action.payload.read;
     },
+    setAllReadStatus: (state) => {
+      for (const [id, read] of Object.entries(state.readByInboxItemId)) {
+        if (read) continue;
+
+        state.readByInboxItemId[id] = true;
+      }
+    },
     receivedMessages: (state, action: PayloadAction<PrivateMessageView[]>) => {
       state.messages = uniqBy(
         [...action.payload, ...state.messages],
@@ -78,6 +81,10 @@ export const inboxSlice = createSlice({
       if (state.messageSyncState === "syncing") state.messageSyncState = "init";
     },
     resetInbox: () => initialState,
+    resetMessages: (state) => {
+      state.messageSyncState = "init";
+      state.messages = [];
+    },
   },
 });
 
@@ -88,10 +95,11 @@ export const {
   setReadStatus,
   receivedMessages,
   resetInbox,
-
+  resetMessages,
   sync,
   syncComplete,
   syncFail,
+  setAllReadStatus: markAllReadInCache,
 } = inboxSlice.actions;
 
 export default inboxSlice.reducer;
@@ -102,7 +110,8 @@ export const totalUnreadSelector = (state: RootState) =>
   state.inbox.counts.replies;
 
 export const getInboxCounts =
-  () => async (dispatch: AppDispatch, getState: () => RootState) => {
+  (force = false) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
     const jwt = jwtSelector(getState());
 
     if (!jwt) {
@@ -112,30 +121,9 @@ export const getInboxCounts =
 
     const lastUpdatedCounts = getState().inbox.lastUpdatedCounts;
 
-    if (Date.now() - lastUpdatedCounts < 3_000) return;
+    if (!force && Date.now() - lastUpdatedCounts < 3_000) return;
 
-    let result;
-    const initialHandle = handleSelector(getState());
-
-    try {
-      result = await clientSelector(getState()).getUnreadCount();
-    } catch (error) {
-      // Get inbox counts is a good place to check if token is valid,
-      // because it runs quite often (when returning from background,
-      // every 60 seconds, etc)
-      //
-      // If API rejects jwt, check if initial handle used to make the request
-      // is the same as the handle at this moment (e.g. something else didn't
-      // log the user out). If match, then proceed to log the user out
-      if (isLemmyError(error, "not_logged_in")) {
-        const handle = handleSelector(getState());
-        if (handle && handle === initialHandle) {
-          dispatch(logoutAccount(handle));
-        }
-      }
-
-      throw error;
-    }
+    const result = await clientSelector(getState()).getUnreadCount();
 
     if (result) dispatch(receivedInboxCounts(result));
   };
@@ -160,14 +148,18 @@ export const syncMessages =
 
         let page = 1;
 
-        // eslint-disable-next-line no-constant-condition
         while (true) {
           let privateMessages;
 
           try {
             const results = await clientSelector(getState()).getPrivateMessages(
               {
-                limit: syncState === "init" ? 50 : page === 1 ? 1 : 20,
+                limit: (() => {
+                  if (syncState === "init") return 50; // initial sync, expect many messages
+                  if (page === 1) return 1; // poll to check for new messages
+
+                  return 20; // detected new messages, kick off sync
+                })(),
                 page,
               },
             );
@@ -200,8 +192,31 @@ export const markAllRead =
   () => async (dispatch: AppDispatch, getState: () => RootState) => {
     await clientSelector(getState()).markAllAsRead();
 
-    dispatch(getInboxCounts());
+    dispatch(markAllReadInCache());
+    dispatch(getInboxCounts(true));
   };
+
+export const conversationsByPersonIdSelector = createSelector(
+  [
+    (state: RootState) => state.inbox.messages,
+    (state: RootState) =>
+      state.site.response?.my_user?.local_user_view?.local_user?.person_id,
+  ],
+  (messages, myUserId) => {
+    return sortBy(
+      Object.values(
+        groupBy(messages, (m) =>
+          m.private_message.creator_id === myUserId
+            ? m.private_message.recipient_id
+            : m.private_message.creator_id,
+        ),
+      ).map((messages) =>
+        sortBy(messages, [(m) => -Date.parse(m.private_message.published)]),
+      ),
+      [(group) => -Date.parse(group[0]!.private_message.published)],
+    );
+  },
+);
 
 export function getInboxItemId(item: InboxItemView): string {
   if ("comment_reply" in item) {
@@ -272,5 +287,5 @@ export const markRead =
       throw error;
     }
 
-    dispatch(getInboxCounts());
+    dispatch(getInboxCounts(true));
   };

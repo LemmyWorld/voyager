@@ -1,101 +1,73 @@
-import styled from "@emotion/styled";
 import { IonItem } from "@ionic/react";
-import { CommunityView } from "lemmy-js-client";
-import { maxWidthCss } from "../shared/AppContent";
-import CommunityLink from "../labels/links/CommunityLink";
-import Ago from "../labels/Ago";
-import InlineMarkdown from "../shared/InlineMarkdown";
 import { heart } from "ionicons/icons";
-import { ActionButton } from "../post/actions/ActionButton";
+import { CommunityView } from "lemmy-js-client";
+
+import Ago from "#/features/labels/Ago";
+import CommunityLink from "#/features/labels/links/CommunityLink";
+import { ActionButton } from "#/features/post/actions/ActionButton";
+import InlineMarkdown from "#/features/shared/markdown/InlineMarkdown";
+import { buildCommunityLink } from "#/helpers/appLinkBuilder";
+import { cx } from "#/helpers/css";
+import { formatNumber } from "#/helpers/number";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+
 import { ToggleIcon } from "./ToggleIcon";
 import useCommunityActions from "./useCommunityActions";
 
-const Container = styled(IonItem)`
-  ${maxWidthCss}
-`;
-
-const RightContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const Title = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`;
-
-const StyledCommunityLink = styled(CommunityLink)`
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const Contents = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 1rem;
-
-  width: 100%;
-`;
-
-const Stats = styled.div`
-  font-size: 0.9rem;
-  color: var(--ion-color-medium);
-`;
-
-const Description = styled.div`
-  font-size: 0.875em;
-
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-`;
+import styles from "./CommunitySummary.module.css";
 
 interface CommunitySummaryProps {
   community: CommunityView;
 }
 
 export default function CommunitySummary({ community }: CommunitySummaryProps) {
-  const { isSubscribed, subscribe, view } = useCommunityActions(
+  const buildGeneralBrowseLink = useBuildGeneralBrowseLink();
+  const { isSubscribed, subscribe } = useCommunityActions(
     community.community,
+    community.subscribed,
   );
 
   return (
-    <Container>
-      <Contents>
-        <Title>
-          <StyledCommunityLink
+    <IonItem
+      className={styles.item}
+      routerLink={buildGeneralBrowseLink(
+        buildCommunityLink(community.community),
+      )}
+      detail={false}
+    >
+      <div className={cx(styles.contents)}>
+        <div className={styles.title}>
+          <CommunityLink
+            className={styles.communityLink}
             community={community.community}
             showInstanceWhenRemote
             subscribed={community.subscribed}
+            hideSubscribed
           />
-          <RightContainer>
+          <div className={styles.rightContainer}>
             <ActionButton
-              color={isSubscribed ? "danger" : "primary"}
               onClick={(e) => {
-                subscribe();
                 e.stopPropagation();
+                e.preventDefault();
+
+                subscribe();
               }}
             >
               <ToggleIcon icon={heart} selected={isSubscribed} />
             </ActionButton>
-          </RightContainer>
-        </Title>
-        <Stats onClick={view}>
-          {community.counts.subscribers} Subscriber
+          </div>
+        </div>
+        <div className={styles.stats}>
+          {formatNumber(community.counts.subscribers)} Subscriber
           {community.counts.subscribers !== 1 ? "s" : ""} ·{" "}
           <Ago date={community.community.published} /> Old{" "}
-        </Stats>
+        </div>
         {community.community.description && (
-          <Description onClick={view}>
+          <div className={styles.description}>
             <InlineMarkdown>{community.community.description}</InlineMarkdown>
-          </Description>
+          </div>
         )}
-      </Contents>
-    </Container>
+      </div>
+    </IonItem>
   );
 }

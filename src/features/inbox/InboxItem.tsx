@@ -1,103 +1,35 @@
+import { IonIcon, IonItem } from "@ionic/react";
+import { albums, chatbubble, mail, personCircle } from "ionicons/icons";
 import {
   CommentReplyView,
   PersonMentionView,
   PrivateMessageView,
 } from "lemmy-js-client";
-import CommentMarkdown from "../comment/CommentMarkdown";
-import { IonIcon, IonItem } from "@ionic/react";
-import styled from "@emotion/styled";
-import { albums, chatbubble, mail, personCircle } from "ionicons/icons";
-import Ago from "../labels/Ago";
-import { useBuildGeneralBrowseLink } from "../../helpers/routes";
-import { getHandle } from "../../helpers/lemmy";
-import { useAppDispatch, useAppSelector } from "../../store";
+import { useCallback, useRef } from "react";
+import { useLongPress } from "use-long-press";
+
+import CommentMarkdown from "#/features/comment/CommentMarkdown";
+import Ago from "#/features/labels/Ago";
+import CommunityLink from "#/features/labels/links/CommunityLink";
+import PersonLink from "#/features/labels/links/PersonLink";
+import SlidingInbox from "#/features/shared/sliding/SlidingInbox";
+import { cx } from "#/helpers/css";
+import { isTouchDevice } from "#/helpers/device";
+import { stopIonicTapClick } from "#/helpers/ionic";
+import { getHandle } from "#/helpers/lemmy";
+import { filterEvents } from "#/helpers/longPress";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+import useAppToast from "#/helpers/useAppToast";
+import { isPostReply } from "#/routes/pages/inbox/RepliesPage";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import InboxItemMoreActions, {
+  InboxItemMoreActionsHandle,
+} from "./InboxItemMoreActions";
 import { getInboxItemId, markRead as markReadAction } from "./inboxSlice";
-import { css } from "@emotion/react";
-import { isPostReply } from "../../pages/inbox/RepliesPage";
-import { maxWidthCss } from "../shared/AppContent";
 import VoteArrow from "./VoteArrow";
-import SlidingInbox from "../shared/sliding/SlidingInbox";
-import useAppToast from "../../helpers/useAppToast";
-import InboxItemMoreActions from "./InboxItemMoreActions";
 
-const Hr = styled.div`
-  ${maxWidthCss}
-
-  position: relative;
-  height: 1px;
-
-  &::after {
-    content: "";
-    position: absolute;
-
-    --right-offset: 1.8rem;
-
-    width: calc(100% - var(--right-offset));
-    left: var(--right-offset);
-    top: 0;
-    border-bottom: 1px solid
-      var(
-        --ion-item-border-color,
-        var(--ion-border-color, var(--ion-color-step-250, #c8c7cc))
-      );
-  }
-`;
-
-const StyledIonItem = styled(IonItem)<{ read: boolean }>`
-  --ion-item-border-color: transparent;
-
-  ${({ read }) =>
-    !read &&
-    css`
-      --background: var(--unread-item-background-color);
-    `}
-`;
-
-const Container = styled.div`
-  display: flex;
-  gap: 1rem;
-
-  ${maxWidthCss}
-
-  padding: 0.5rem 0;
-
-  font-size: 0.875em;
-
-  strong {
-    font-weight: 500;
-  }
-`;
-
-const StartContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-`;
-
-const Content = styled.div`
-  flex: 1;
-`;
-
-const Header = styled.div``;
-
-const Body = styled.div`
-  color: var(--ion-color-medium);
-`;
-
-const Footer = styled.div`
-  display: flex;
-  align-items: center;
-
-  color: var(--ion-color-medium);
-
-  aside {
-    margin-left: auto;
-
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-`;
+import styles from "./InboxItem.module.css";
 
 export type InboxItemView =
   | PersonMentionView
@@ -121,8 +53,8 @@ export default function InboxItem({ item }: InboxItemProps) {
 
   const vote =
     "comment" in item
-      ? commentVotesById[item.comment.id] ??
-        (item.my_vote as 1 | 0 | -1 | undefined)
+      ? (commentVotesById[item.comment.id] ??
+        (item.my_vote as 1 | 0 | -1 | undefined))
       : undefined;
 
   function renderHeader() {
@@ -172,8 +104,19 @@ export default function InboxItem({ item }: InboxItemProps) {
     if ("comment" in item) {
       return (
         <>
-          <strong>{item.creator.name}</strong> in{" "}
-          <strong>{item.community.name}</strong>
+          <PersonLink
+            person={item.creator}
+            className={styles.label}
+            showBadge={false}
+            sourceUrl={getSourceUrl()}
+          />{" "}
+          in{" "}
+          <CommunityLink
+            community={item.community}
+            subscribed={item.subscribed}
+            hideIcon
+            className={styles.label}
+          />
         </>
       );
     }
@@ -195,6 +138,10 @@ export default function InboxItem({ item }: InboxItemProps) {
     if ("comment" in item) return item.counts.published;
 
     return item.private_message.published;
+  }
+
+  function getSourceUrl() {
+    if ("comment" in item) return item.comment.ap_id;
   }
 
   function getIcon() {
@@ -219,47 +166,77 @@ export default function InboxItem({ item }: InboxItemProps) {
     }
   }
 
+  const read = !!readByInboxItemId[getInboxItemId(item)];
+
+  const ellipsisHandleRef = useRef<InboxItemMoreActionsHandle>(null);
+
+  const onCommentLongPress = useCallback(() => {
+    ellipsisHandleRef.current?.present();
+    stopIonicTapClick();
+  }, []);
+
+  const bind = useLongPress(onCommentLongPress, {
+    threshold: 800,
+    cancelOnMovement: 15,
+    filterEvents,
+  });
+
   const contents = (
-    <StyledIonItem
+    <IonItem
+      mode="ios" // Use iOS style activatable tap highlight
+      className={cx(
+        styles.item,
+        !read && styles.itemUnread,
+        isTouchDevice() && "ion-activatable",
+      )}
       routerLink={getLink()}
       href={undefined}
       detail={false}
       onClick={markRead}
-      read={!!readByInboxItemId[getInboxItemId(item)]}
+      {...bind()}
     >
-      <Container>
-        <StartContent>
-          <IonIcon icon={getIcon()} color="medium" />
+      <div className={styles.container}>
+        <div className={styles.startContent}>
+          <IonIcon className={styles.typeIcon} icon={getIcon()} />
           <VoteArrow vote={vote} />
-        </StartContent>
-        <Content>
-          <Header>{renderHeader()}</Header>
-          <Body>
-            <CommentMarkdown>{renderContents()}</CommentMarkdown>
-          </Body>
-          <Footer>
+        </div>
+        <div className={styles.content}>
+          <div>{renderHeader()}</div>
+          <div className={styles.body}>
+            <CommentMarkdown id={getItemId(item)}>
+              {renderContents()}
+            </CommentMarkdown>
+          </div>
+          <div className={styles.footer}>
             <div>{renderFooterDetails()}</div>
             <aside>
-              <InboxItemMoreActions item={item} /> <Ago date={getDate()} />
+              <InboxItemMoreActions item={item} ref={ellipsisHandleRef} />
+              <Ago date={getDate()} />
             </aside>
-          </Footer>
-        </Content>
-      </Container>
-    </StyledIonItem>
+          </div>
+        </div>
+      </div>
+    </IonItem>
   );
-
-  if ("comment" in item)
-    return (
-      <>
-        <SlidingInbox item={item}>{contents}</SlidingInbox>
-        <Hr />
-      </>
-    );
 
   return (
     <>
-      {contents}
-      <Hr />
+      <SlidingInbox item={item}>{contents}</SlidingInbox>
+      <div className={styles.hr} />
     </>
   );
+}
+
+function getItemId(item: InboxItemView): string {
+  switch (true) {
+    case "person_mention" in item:
+      return `mention-${item.person_mention.id}`;
+    case "comment_reply" in item:
+      return `comment-reply-${item.comment_reply.id}`;
+    case "private_message" in item:
+      return `private-message-${item.private_message.id}`;
+  }
+
+  // typescript should be smarter (this shouldn't be necessary)
+  throw new Error("getItemId: Unexpected item");
 }

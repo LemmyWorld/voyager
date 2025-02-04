@@ -1,9 +1,15 @@
-import { IonLabel, IonList, IonLoading, IonToggle } from "@ionic/react";
-import { InsetIonItem } from "../../../pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../store";
-import { localUserSelector, showNsfw } from "../../auth/authSlice";
+import {
+  IonItem,
+  IonLabel,
+  IonList,
+  IonLoading,
+  IonToggle,
+} from "@ionic/react";
 import { useState } from "react";
-import { ListHeader } from "../shared/formatting";
+
+import { localUserSelector, showNsfw } from "#/features/auth/siteSlice";
+import { ListHeader } from "#/features/settings/shared/formatting";
+import { useAppDispatch, useAppSelector } from "#/store";
 
 export default function FilterNsfw() {
   const dispatch = useAppDispatch();
@@ -16,8 +22,7 @@ export default function FilterNsfw() {
         <IonLabel>NSFW</IonLabel>
       </ListHeader>
       <IonList inset>
-        <InsetIonItem>
-          <IonLabel>Hide all NSFW</IonLabel>
+        <IonItem>
           <IonToggle
             checked={!localUser?.show_nsfw}
             onIonChange={async () => {
@@ -28,8 +33,10 @@ export default function FilterNsfw() {
                 setLoading(false);
               }
             }}
-          />
-        </InsetIonItem>
+          >
+            Hide all NSFW
+          </IonToggle>
+        </IonItem>
       </IonList>
       <IonLoading isOpen={loading} />
     </>

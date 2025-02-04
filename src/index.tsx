@@ -1,9 +1,13 @@
+// Side effect: Remove capacitor shim before anything else
+import "./services/nativeFetch";
+
+// Then import the rest
 import React from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
-import "./index.css";
-import { getAndroidNavMode, isNative } from "./helpers/device";
+
+import App from "./core/App";
 import "./features/icons";
+import { getAndroidNavMode, isNative } from "./helpers/device";
 
 (async () => {
   try {

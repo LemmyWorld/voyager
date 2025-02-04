@@ -1,17 +1,16 @@
-import { useAppSelector } from "../../../../store";
-import { OPostBlurNsfw, PostBlurNsfwType } from "../../../../services/db";
+import SettingSelector from "#/features/settings/shared/SettingSelector";
+import { OPostBlurNsfw } from "#/services/db";
+import { useAppSelector } from "#/store";
+
 import { setBlurNsfwState } from "../../settingsSlice";
-import SettingSelector from "../../shared/SettingSelector";
 
 export default function BlurNsfw() {
   const nsfwBlurred = useAppSelector(
     (state) => state.settings.appearance.posts.blurNsfw,
   );
 
-  const BlurSelector = SettingSelector<PostBlurNsfwType>;
-
   return (
-    <BlurSelector
+    <SettingSelector
       title="Blur NSFW"
       selected={nsfwBlurred}
       setSelected={setBlurNsfwState}

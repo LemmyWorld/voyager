@@ -1,13 +1,17 @@
 import { IonLabel, IonList } from "@ionic/react";
-import CollapsedByDefault from "../../general/comments/CollapsedByDefault";
+
+import { ListHeader } from "#/features/settings/shared/formatting";
+
+import CollapsedByDefault from "./CollapsedByDefault";
 import DefaultSort from "./DefaultSort";
-import { ListHeader } from "../../shared/formatting";
-import ShowJumpButton from "./ShowJumpButton";
-import JumpButtonPosition from "./JumpButtonPosition";
 import HighlightNewAccount from "./HighlightNewAccount";
-import TouchFriendlyLinks from "./TouchFriendlyLinks";
-import TapToCollapse from "./TapToCollapse";
+import JumpButtonPosition from "./JumpButtonPosition";
+import RememberCommunityCommentSort from "./RememberCommunityCommentSort";
+import ShowCollapsed from "./ShowCollapsed";
 import ShowCommentImages from "./ShowCommentImages";
+import ShowJumpButton from "./ShowJumpButton";
+import TapToCollapse from "./TapToCollapse";
+import TouchFriendlyLinks from "./TouchFriendlyLinks";
 
 export default function Comments() {
   return (
@@ -17,6 +21,7 @@ export default function Comments() {
       </ListHeader>
       <IonList inset>
         <DefaultSort />
+        <RememberCommunityCommentSort />
         <CollapsedByDefault />
         <TapToCollapse />
         <ShowJumpButton />
@@ -24,6 +29,7 @@ export default function Comments() {
         <HighlightNewAccount />
         <TouchFriendlyLinks />
         <ShowCommentImages />
+        <ShowCollapsed />
       </IonList>
     </>
   );

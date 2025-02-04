@@ -1,8 +1,12 @@
 package app.vger.voyager;
 
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.webkit.URLUtil;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -33,6 +37,37 @@ public class MainActivity extends BridgeActivity {
                             View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
             getWindow().setStatusBarColor(0);
             getWindow().setNavigationBarColor(0);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+
+        if (intent.getAction() == Intent.ACTION_SEND) {
+            var newIntent = new Intent(Intent.ACTION_VIEW);
+            var potentialUrl = intent.getStringExtra(Intent.EXTRA_TEXT);
+
+            if (!URLUtil.isValidUrl(potentialUrl) || !potentialUrl.startsWith("https://")) {
+                new AlertDialog.Builder(bridge.getContext())
+                        .setTitle("Unknown share data received")
+                        .setMessage("Voyager only accepts URLs to Lemmy content so that you can browse in-app.")
+                        .setCancelable(true)
+                        .setPositiveButton("OK", null)
+                        .show();
+
+                return;
+            }
+
+            Uri uri = Uri.parse(potentialUrl);
+
+            // Add a timestamp to the URL to let app know it is not stale
+            Uri.Builder uriBuilder = uri.buildUpon();
+            long currentTime = System.currentTimeMillis() / 1000L;
+            uriBuilder.appendQueryParameter("t", String.valueOf(currentTime));
+            newIntent.setData(uriBuilder.build());
+
+            bridge.onNewIntent(newIntent);
         }
     }
 }

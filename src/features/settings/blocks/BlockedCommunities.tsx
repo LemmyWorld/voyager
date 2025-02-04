@@ -1,4 +1,5 @@
 import {
+  IonItem,
   IonItemOption,
   IonItemOptions,
   IonItemSliding,
@@ -6,31 +7,44 @@ import {
   IonList,
   IonLoading,
 } from "@ionic/react";
-import { InsetIonItem } from "../../../pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../store";
+import { Community, CommunityView } from "lemmy-js-client";
 import { useState } from "react";
-import { getHandle } from "../../../helpers/lemmy";
-import { CommunityBlockView } from "lemmy-js-client";
-import { blockCommunity } from "../../community/communitySlice";
-import { ListHeader } from "../shared/formatting";
+
+import { blockCommunity } from "#/features/community/communitySlice";
+import { ListHeader } from "#/features/settings/shared/formatting";
+import { RemoveItemButton } from "#/features/shared/ListEditor";
+import { getHandle } from "#/helpers/lemmy";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+/**
+ * TODO remove - Lemmy 0.19 returned communityView. v0.20 returns community.
+ */
+function getCommunity(
+  potentialCommunity: CommunityView | Community,
+): Community {
+  if ("community" in potentialCommunity) return potentialCommunity.community;
+
+  return potentialCommunity;
+}
 
 export default function BlockedCommunities() {
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState(false);
 
   const communities = useAppSelector(
-    (state) => state.auth.site?.my_user?.community_blocks,
+    (state) => state.site.response?.my_user?.community_blocks,
   );
 
   const sortedCommunities = communities
+    ?.map(getCommunity)
     ?.slice()
-    .sort((a, b) => a.community.name.localeCompare(b.community.name));
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-  async function remove(community: CommunityBlockView) {
+  async function remove(community: Community) {
     setLoading(true);
 
     try {
-      await dispatch(blockCommunity(false, community.community.id));
+      await dispatch(blockCommunity(false, community.id));
     } finally {
       setLoading(false);
     }
@@ -44,7 +58,7 @@ export default function BlockedCommunities() {
       <IonList inset>
         {sortedCommunities?.length ? (
           sortedCommunities.map((community) => (
-            <IonItemSliding key={community.community.id}>
+            <IonItemSliding key={community.id}>
               <IonItemOptions side="end" onIonSwipe={() => remove(community)}>
                 <IonItemOption
                   color="danger"
@@ -54,15 +68,16 @@ export default function BlockedCommunities() {
                   Unblock
                 </IonItemOption>
               </IonItemOptions>
-              <InsetIonItem>
-                <IonLabel>{getHandle(community.community)}</IonLabel>
-              </InsetIonItem>
+              <IonItem>
+                <IonLabel>{getHandle(community)}</IonLabel>
+                <RemoveItemButton />
+              </IonItem>
             </IonItemSliding>
           ))
         ) : (
-          <InsetIonItem>
+          <IonItem>
             <IonLabel color="medium">No blocked communities</IonLabel>
-          </InsetIonItem>
+          </IonItem>
         )}
       </IonList>
 

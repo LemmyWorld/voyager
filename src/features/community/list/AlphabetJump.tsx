@@ -1,30 +1,30 @@
-import styled from "@emotion/styled";
-import React, {
-  MouseEvent,
-  RefObject,
-  TouchEvent,
-  useMemo,
-  useRef,
-} from "react";
-import { VListHandle } from "virtua";
-import useHapticFeedback from "../../../helpers/useHapticFeedback";
 import { ImpactStyle } from "@capacitor/haptics";
-import { ellipseOutline, menuOutline, star } from "ionicons/icons";
 import { IonIcon } from "@ionic/react";
-import { notEmpty } from "../../../helpers/array";
-import { findCurrentPage } from "../../../helpers/ionic";
+import { compact } from "es-toolkit";
+import { ellipseOutline, menuOutline, star } from "ionicons/icons";
+import { MouseEvent, RefObject, TouchEvent, useMemo, useRef } from "react";
+import { VListHandle } from "virtua";
+
+import { findCurrentPage } from "#/helpers/ionic";
+import useHapticFeedback from "#/helpers/useHapticFeedback";
+
+import styles from "./AlphabetJump.module.css";
 
 const alphabetUpperCase = Array.from({ length: 26 }, (_, i) =>
   String.fromCharCode(65 + i),
 );
 
-enum SpecialSection {
-  Home = 0,
-  Favorited = 1,
-  Moderated = 2,
-}
+const SpecialSection = {
+  Home: 0,
+  Favorited: 1,
+  Moderated: 2,
+} as const;
 
-type JumpItem = SpecialSection | string;
+type SpecialSectionType = (typeof SpecialSection)[keyof typeof SpecialSection];
+
+type JumpValue = SpecialSectionType | string;
+
+type JumpItem = [JumpValue, number];
 
 const SECTIONS = [
   <IonIcon icon={menuOutline} key={0} />,
@@ -53,54 +53,27 @@ const SIMPLIFIED_SECTIONS = SECTIONS.reduce<typeof SECTIONS>(
   [],
 );
 
-export const HIDE_ALPHABET_JUMP =
-  "(max-height: 600px) and (orientation: landscape)" as const;
+const LOOKUP: Record<string, SpecialSectionType> = {
+  Moderator: SpecialSection.Moderated,
+  Favorites: SpecialSection.Favorited,
+} as const;
 
-const Container = styled.div`
-  --line-height: 15px;
-
-  position: absolute;
-  right: env(safe-area-inset-right);
-  z-index: 1;
-
-  top: 50%;
-  transform: translateY(-50%);
-
-  display: flex;
-  flex-direction: column;
-
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--ion-color-primary);
-  text-align: center;
-
-  padding-left: 6px;
-  padding-right: 3px;
-
-  white-space: pre;
-  line-height: var(--line-height);
-
-  ion-icon {
-    height: var(--line-height);
-  }
-
-  @media ${HIDE_ALPHABET_JUMP} {
-    display: none;
-  }
-`;
+function mapSeparatorsToJumpSections(
+  separators: { label: string; index: number }[],
+): JumpItem[] {
+  return compact(
+    separators.map(({ label, index }) => [LOOKUP[label] ?? label, index]),
+  );
+}
 
 interface AlphabetJumpProps {
   virtuaRef: RefObject<VListHandle>;
-  hasModerated: boolean;
-  hasFavorited: boolean;
-  letters: string[];
+  separators: { label: string; index: number }[];
 }
 
 export default function AlphabetJump({
   virtuaRef,
-  hasFavorited,
-  hasModerated,
-  letters,
+  separators,
 }: AlphabetJumpProps) {
   const containerElTopRef = useRef<DOMRect | undefined>();
   const scrollViewRef = useRef<HTMLElement | undefined>();
@@ -108,21 +81,18 @@ export default function AlphabetJump({
   const jumpTableLookup = useMemo(
     () =>
       buildJumpToTable(
-        [
-          SpecialSection.Home,
-          hasFavorited ? SpecialSection.Favorited : undefined,
-          hasModerated ? SpecialSection.Moderated : undefined,
-          ...letters,
-        ].filter(notEmpty),
-        [
-          SpecialSection.Home,
-          SpecialSection.Favorited,
-          SpecialSection.Moderated,
-          ...alphabetUpperCase,
-          "#",
-        ].filter(notEmpty),
+        compact(mapSeparatorsToJumpSections(separators)),
+        compact(
+          [
+            SpecialSection.Home,
+            SpecialSection.Favorited,
+            SpecialSection.Moderated,
+            ...alphabetUpperCase,
+            "#",
+          ].map((value, index) => [value, index]),
+        ),
       ),
-    [hasFavorited, hasModerated, letters],
+    [separators],
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -135,7 +105,7 @@ export default function AlphabetJump({
   };
 
   const onDrag = (e: MouseEvent | TouchEvent) => {
-    const y = "touches" in e ? e.touches[0].clientY : e.clientY;
+    const y = "touches" in e ? e.touches[0]!.clientY : e.clientY;
     if (!containerElTopRef.current) return;
 
     const sectionIndex = Math.min(
@@ -152,7 +122,7 @@ export default function AlphabetJump({
     const section =
       jumpTableLookup[
         Math.max(0, Math.min(sectionIndex, jumpTableLookup.length - 1))
-      ];
+      ]!;
 
     const currentScrollOfset = scrollViewRef.current?.scrollTop;
     virtuaRef.current?.scrollToIndex(section);
@@ -161,7 +131,8 @@ export default function AlphabetJump({
   };
 
   return (
-    <Container
+    <div
+      className={styles.container}
       ref={containerRef}
       onTouchMove={onDrag}
       onTouchStart={(e) => {
@@ -177,7 +148,7 @@ export default function AlphabetJump({
       slot="fixed"
     >
       {SIMPLIFIED_SECTIONS}
-    </Container>
+    </div>
   );
 }
 
@@ -187,8 +158,8 @@ function buildJumpToTable(partial: JumpItem[], all: JumpItem[]): number[] {
   let lastFound = 0;
 
   for (let i = 0; i < all.length; i++) {
-    const foundIndex = partial.findIndex((p) => p === all[i]);
-    if (foundIndex !== -1) lastFound = foundIndex;
+    const foundItem = partial.find((p) => p[0] === all[i]![0]);
+    if (foundItem) lastFound = foundItem[1];
     jumpToTable.push(lastFound);
   }
 

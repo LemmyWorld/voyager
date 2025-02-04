@@ -1,15 +1,19 @@
-import { PayloadAction, createSelector, createSlice } from "@reduxjs/toolkit";
-import { AppDispatch, RootState } from "../../store";
-import { clientSelector } from "../auth/authSlice";
+import { createSelector, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { FederatedInstances } from "lemmy-js-client";
-import { db } from "../../services/db";
+
+import { clientSelector, urlSelector } from "#/features/auth/authSelectors";
+import { db } from "#/services/db";
+import { customBackOff } from "#/services/lemmy";
+import { AppDispatch, RootState } from "#/store";
 
 interface InstancesState {
   knownInstances: "pending" | FederatedInstances | undefined;
+  failedCount: number;
 }
 
 const initialState: InstancesState = {
   knownInstances: undefined,
+  failedCount: 0,
 };
 
 export const instancesSlice = createSlice({
@@ -21,9 +25,11 @@ export const instancesSlice = createSlice({
     },
     failedInstances: (state) => {
       state.knownInstances = undefined;
+      state.failedCount++;
     },
     receivedInstances: (state, action: PayloadAction<FederatedInstances>) => {
       state.knownInstances = action.payload;
+      state.failedCount = 0;
     },
     resetInstances: () => initialState,
   },
@@ -45,7 +51,8 @@ export const knownInstancesSelector = createSelector(
     (state: RootState) => state.auth.connectedInstance,
   ],
   (knownInstances, connectedInstance) => {
-    if (!knownInstances || knownInstances === "pending") return [];
+    if (!knownInstances || knownInstances === "pending")
+      return [connectedInstance];
 
     return [
       connectedInstance,
@@ -58,7 +65,8 @@ export const knownInstancesSelector = createSelector(
 
 export const getInstances =
   () => async (dispatch: AppDispatch, getState: () => RootState) => {
-    const connectedInstance = getState().auth.connectedInstance;
+    const connectedInstance = urlSelector(getState());
+    const client = clientSelector(getState());
 
     // Already received, or in flight
     if (getState().instances.knownInstances) return;
@@ -68,21 +76,32 @@ export const getInstances =
     let federated_instances =
       await db.getCachedFederatedInstances(connectedInstance);
 
-    if (!federated_instances) {
+    // https://github.com/aeharding/voyager/issues/935
+    if (!federated_instances?.linked) {
       try {
-        ({ federated_instances } = await clientSelector(
-          getState(),
-        ).getFederatedInstances());
+        ({ federated_instances } = await client.getFederatedInstances());
 
-        if (!federated_instances)
+        if (!federated_instances?.linked)
           throw new Error("No federated instances in response");
 
         db.setCachedFederatedInstances(connectedInstance, federated_instances);
       } catch (error) {
         dispatch(failedInstances());
+
+        (async () => {
+          await customBackOff(getState().instances.failedCount);
+
+          // Instance was switched before request could resolved. Bail
+          if (connectedInstance !== urlSelector(getState())) return;
+
+          dispatch(getInstances());
+        })();
         throw error;
       }
     }
+
+    // Instance was switched before request could resolved. Bail
+    if (connectedInstance !== urlSelector(getState())) return;
 
     dispatch(receivedInstances(federated_instances));
   };

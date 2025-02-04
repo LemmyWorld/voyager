@@ -1,15 +1,40 @@
-import { compare } from "compare-versions";
-import { lemmyVersionSelector } from "../features/auth/authSlice";
-import { useAppSelector } from "../store";
-import { CommentSortType, SortType } from "lemmy-js-client";
+import { compare, CompareOperator } from "compare-versions";
+import { memoize } from "es-toolkit";
+import { CommentSortType, PostSortType } from "lemmy-js-client";
+
+import { lemmyVersionSelector } from "#/features/auth/siteSlice";
+import { useAppSelector } from "#/store";
 
 /**
- * What Lemmy version was support added?
+ * What version was support removed?
+ */
+const SUPPORTED_ON_OLDER_EXCLUSIVE = ">";
+
+/**
+ * What version was support added?
+ */
+const SUPPORTED_ON_NEWER_INCLUSIVE = "<=";
+
+const memoizedCompare = memoize(
+  ([v1, v2, cmp]: Parameters<typeof compare>) => compare(v1, v2, cmp),
+  {
+    getCacheKey: ([v1, v2, cmp]) => `${v1}${v2}${cmp}`,
+  },
+);
+
+/**
+ * Default: `SUPPORTED_ON_NEWER_INCLUSIVE` (what version was support added?)
  */
 const featureVersionSupported = {
-  "v0.19 Sorts": "0.19.0-rc.3",
-  "Instance Blocking": "0.19.0-rc.3",
-  "Modded Feed": "0.19.0-rc.3",
+  /**
+   * https://github.com/LemmyNet/lemmy-ui/issues/2796
+   */
+  "Fullsize thumbnails": ["0.19.6", SUPPORTED_ON_OLDER_EXCLUSIVE],
+
+  /**
+   * https://github.com/LemmyNet/lemmy/issues/5183
+   */
+  "Random community API": "0.20.0",
 } as const;
 
 type Feature = keyof typeof featureVersionSupported;
@@ -19,11 +44,22 @@ export default function useSupported(feature: Feature): boolean {
 
   if (!lemmyVersion) return false;
 
-  return compare(featureVersionSupported[feature], lemmyVersion, "<=");
+  const supported = featureVersionSupported[feature];
+
+  let comparator: CompareOperator = SUPPORTED_ON_NEWER_INCLUSIVE;
+  let version: string;
+  if (typeof supported === "string") {
+    version = supported;
+  } else {
+    version = supported[0];
+    comparator = supported[1];
+  }
+
+  return memoizedCompare([version, lemmyVersion, comparator]);
 }
 
 export function is019Sort(
-  sort: SortType | CommentSortType | undefined,
+  sort: PostSortType | CommentSortType | undefined,
 ): boolean {
   switch (sort) {
     case "Controversial":

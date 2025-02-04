@@ -1,44 +1,54 @@
-import React, { useCallback, useMemo } from "react";
-import styled from "@emotion/styled";
-import InAppExternalLink from "../InAppExternalLink";
+import React from "react";
+
+import { cx } from "#/helpers/css";
+import { buildBaseLemmyUrl } from "#/services/lemmy";
+import { useAppSelector } from "#/store";
+
+import InAppExternalLink, { AdditionalLinkProps } from "../InAppExternalLink";
 import useLemmyUrlHandler from "../useLemmyUrlHandler";
-import { useAppSelector } from "../../../store";
 
-const LinkInterceptor = styled(LinkInterceptorUnstyled)`
-  -webkit-touch-callout: default;
-`;
+import styles from "./LinkInterceptor.module.css";
 
-function LinkInterceptorUnstyled({
+type LinkInterceptorUnstyledProps = React.JSX.IntrinsicElements["a"] & {
+  el?: "div";
+
+  /**
+   * If we know the link is from Lemmy, force it to be resolved.
+   * This helps on new instances that aren't fully federated.
+   */
+  forceResolveObject?: boolean;
+} & AdditionalLinkProps;
+
+export default function LinkInterceptor({
   onClick: _onClick,
+  onClickCompleted,
+  forceResolveObject,
   ...props
-}: React.JSX.IntrinsicElements["a"]) {
-  const connectedInstance = useAppSelector(
-    (state) => state.auth.connectedInstance,
+}: LinkInterceptorUnstyledProps) {
+  const connectedInstanceUrl = useAppSelector((state) =>
+    buildBaseLemmyUrl(state.auth.connectedInstance),
   );
   const { redirectToLemmyObjectIfNeeded } = useLemmyUrlHandler();
 
-  const absoluteHref = useMemo(() => {
+  const absoluteHref = (() => {
     if (!props.href) return;
 
     try {
-      return new URL(props.href, `https://${connectedInstance}`).href;
-    } catch (error) {
+      return new URL(props.href, connectedInstanceUrl).href;
+    } catch (_) {
       return;
     }
-  }, [connectedInstance, props.href]);
+  })();
 
-  const onClick = useCallback(
-    async (e: React.MouseEvent<HTMLAnchorElement>) => {
-      _onClick?.(e);
+  async function onClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    _onClick?.(e);
 
-      if (!props.href) return;
-      if (e.metaKey || e.ctrlKey) return;
-      if (e.defaultPrevented) return;
+    if (!props.href) return;
+    if (e.metaKey || e.ctrlKey) return;
+    if (e.defaultPrevented) return;
 
-      redirectToLemmyObjectIfNeeded(props.href, e);
-    },
-    [props.href, redirectToLemmyObjectIfNeeded, _onClick],
-  );
+    redirectToLemmyObjectIfNeeded(props.href, e, forceResolveObject);
+  }
 
   // Sometimes markdown thinks things are URLs that aren't URLs
   if (!absoluteHref) return props.children;
@@ -46,12 +56,12 @@ function LinkInterceptorUnstyled({
   return (
     <InAppExternalLink
       {...props}
+      className={cx(props.className, styles.link)}
       target="_blank"
       rel="noopener noreferrer"
       onClick={onClick}
+      onClickCompleted={onClickCompleted}
       href={absoluteHref}
     />
   );
 }
-
-export default LinkInterceptor;

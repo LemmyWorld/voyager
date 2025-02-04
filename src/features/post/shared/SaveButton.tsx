@@ -1,43 +1,32 @@
-import styled from "@emotion/styled";
-import { IonIcon } from "@ionic/react";
-import { MouseEvent, useContext } from "react";
-import { PageContext } from "../../auth/PageContext";
-import { useAppDispatch, useAppSelector } from "../../../store";
-import { savePost } from "../postSlice";
-import { css } from "@emotion/react";
-import { bookmarkOutline } from "ionicons/icons";
-import { ActionButton } from "../actions/ActionButton";
-import { saveError, saveSuccess } from "../../../helpers/toastMessages";
 import { ImpactStyle } from "@capacitor/haptics";
-import useHapticFeedback from "../../../helpers/useHapticFeedback";
-import useAppToast from "../../../helpers/useAppToast";
+import { IonIcon } from "@ionic/react";
+import { bookmarkOutline } from "ionicons/icons";
+import { PostView } from "lemmy-js-client";
+import { MouseEvent, useContext } from "react";
 
-export const Item = styled(ActionButton, {
-  shouldForwardProp: (prop) => prop !== "on",
-})<{
-  on?: boolean;
-}>`
-  ${({ on }) =>
-    on
-      ? css`
-          background: var(--ion-color-success);
-          color: var(--ion-color-primary-contrast);
-        `
-      : undefined}
-`;
+import { PageContext } from "#/features/auth/PageContext";
+import { ActionButton } from "#/features/post/actions/ActionButton";
+import { saveError, saveSuccess } from "#/helpers/toastMessages";
+import useAppToast from "#/helpers/useAppToast";
+import useHapticFeedback from "#/helpers/useHapticFeedback";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import { savePost } from "../postSlice";
+
+import styles from "./SaveButton.module.css";
 
 interface SaveButtonProps {
-  postId: number;
+  post: PostView;
 }
 
-export function SaveButton({ postId }: SaveButtonProps) {
+export function SaveButton({ post }: SaveButtonProps) {
   const presentToast = useAppToast();
   const dispatch = useAppDispatch();
   const { presentLoginIfNeeded } = useContext(PageContext);
   const vibrate = useHapticFeedback();
 
   const postSavedById = useAppSelector((state) => state.post.postSavedById);
-  const mySaved = postSavedById[postId];
+  const mySaved = postSavedById[post.post.id];
 
   async function onSavePost(e: MouseEvent) {
     e.stopPropagation();
@@ -47,7 +36,7 @@ export function SaveButton({ postId }: SaveButtonProps) {
     if (presentLoginIfNeeded()) return;
 
     try {
-      await dispatch(savePost(postId, !mySaved));
+      await dispatch(savePost(post, !mySaved));
 
       if (!mySaved) presentToast(saveSuccess);
     } catch (error) {
@@ -58,8 +47,11 @@ export function SaveButton({ postId }: SaveButtonProps) {
   }
 
   return (
-    <Item on={mySaved} onClick={onSavePost}>
+    <ActionButton
+      className={mySaved ? styles.button : undefined}
+      onClick={onSavePost}
+    >
       <IonIcon icon={bookmarkOutline} />
-    </Item>
+    </ActionButton>
   );
 }

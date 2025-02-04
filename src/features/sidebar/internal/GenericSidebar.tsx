@@ -1,24 +1,13 @@
 import { CommunityAggregates, Person, SiteAggregates } from "lemmy-js-client";
-import React from "react";
-import Markdown from "../../shared/Markdown";
+
+import LargeFeedMedia from "#/features/post/inFeed/large/media/LargeFeedMedia";
+import { MaxWidthContainer } from "#/features/shared/AppContent";
+import Markdown from "#/features/shared/markdown/Markdown";
+
 import SidebarCounts from "./SidebarCounts";
 import SidebarOwners from "./SidebarOwners";
-import styled from "@emotion/styled";
 
-const Container = styled.div`
-  line-height: 1.5;
-`;
-
-const BannerImg = styled.img`
-  margin-top: calc(var(--padding-top) * -1);
-  margin-left: calc(var(--padding-start) * -1);
-  margin-right: calc(var(--padding-end) * -1);
-  width: calc(100% + var(--padding-start) + var(--padding-end));
-  max-width: initial;
-
-  max-height: 300px;
-  object-fit: cover;
-`;
+import styles from "./GenericSidebar.module.css";
 
 interface GenericSidebarProps {
   sidebar: string;
@@ -28,6 +17,7 @@ interface GenericSidebarProps {
   type: "instance" | "community";
   banner?: string;
   name: string;
+  id: string;
 }
 
 export default function GenericSidebar({
@@ -38,19 +28,27 @@ export default function GenericSidebar({
   banner,
   extraBadges,
   name,
+  id,
 }: GenericSidebarProps) {
   return (
-    <>
-      <Container className="ion-padding-start ion-padding-end ion-padding-top">
-        {banner && <BannerImg src={banner} alt={`Banner for ${name}`} />}
-        <Markdown>{sidebar}</Markdown>
+    <MaxWidthContainer>
+      <div className={styles.container}>
+        {banner && (
+          <LargeFeedMedia
+            className={styles.bannerImg}
+            src={banner}
+            alt={`Banner for ${name}`}
+            defaultAspectRatio={2.5}
+          />
+        )}
+        <Markdown id={id}>{sidebar}</Markdown>
         <SidebarCounts counts={counts} />
         {extraBadges}
-      </Container>
+      </div>
       <SidebarOwners
         people={people}
         type={type === "community" ? "mods" : "admins"}
       />
-    </>
+    </MaxWidthContainer>
   );
 }

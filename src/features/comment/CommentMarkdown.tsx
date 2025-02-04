@@ -1,42 +1,38 @@
-import styled from "@emotion/styled";
-import { useAppSelector } from "../../store";
-import InAppExternalLink from "../shared/InAppExternalLink";
-import Markdown from "../shared/Markdown";
+import InAppExternalLink from "#/features/shared/InAppExternalLink";
+import Markdown, { MarkdownProps } from "#/features/shared/markdown/Markdown";
+import MarkdownImg from "#/features/shared/markdown/MarkdownImg";
+import { useAppSelector } from "#/store";
 
-interface CommentMarkdownProps {
-  children: string;
+interface CommentMarkdownProps extends Omit<MarkdownProps, "components"> {
+  id: string;
 }
 
-const StyledCommentMarkdown = styled(Markdown)`
-  img {
-    max-height: 200px;
-  }
-`;
-
-export default function CommentMarkdown({ children }: CommentMarkdownProps) {
+export default function CommentMarkdown(props: CommentMarkdownProps) {
   const { showCommentImages } = useAppSelector(
     (state) => state.settings.general.comments,
   );
 
   return (
-    <StyledCommentMarkdown
-      components={
-        !showCommentImages
-          ? {
-              img: (props) => (
-                <InAppExternalLink
-                  href={props.src}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {props.alt || "Image"}
-                </InAppExternalLink>
-              ),
-            }
-          : undefined
-      }
-    >
-      {children}
-    </StyledCommentMarkdown>
+    <Markdown
+      {...props}
+      components={{
+        img: (props) =>
+          !showCommentImages ? (
+            <InAppExternalLink
+              href={props.src}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {props.alt || "Image"}
+            </InAppExternalLink>
+          ) : (
+            <MarkdownImg
+              small
+              {...props}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ),
+      }}
+    />
   );
 }

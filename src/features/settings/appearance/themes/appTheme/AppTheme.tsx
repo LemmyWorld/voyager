@@ -1,37 +1,36 @@
 import {
+  IonItem,
   IonLabel,
   IonList,
   IonRadio,
   IonRadioGroup,
   useIonAlert,
 } from "@ionic/react";
-import { InsetIonItem, ListHeader } from "../../../shared/formatting";
-import AppThemePreview from "./AppThemePreview";
-import { AppThemeType, OAppThemeType } from "../../../../../services/db";
-import { useAppDispatch, useAppSelector } from "../../../../../store";
-import { setTheme } from "../../../settingsSlice";
-import styled from "@emotion/styled";
-import { getTheme } from "../../../../../theme/AppThemes";
-import { capitalize } from "lodash";
-import { useTheme } from "@emotion/react";
+import { capitalize } from "es-toolkit";
 
-const Description = styled.div`
-  font-size: 0.76em;
-  color: var(--ion-color-medium);
-`;
+import { useIsDark } from "#/core/GlobalStyles";
+import { getTheme } from "#/core/theme/AppThemes";
+import { ListHeader } from "#/features/settings/shared/formatting";
+import { AppThemeType, OAppThemeType } from "#/services/db";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import { setTheme } from "../../../settingsSlice";
+import AppThemePreview from "./AppThemePreview";
+
+import styles from "./AppTheme.module.css";
 
 export default function AppTheme() {
   const theme = useAppSelector((state) => state.settings.appearance.theme);
+  const isDark = useIsDark();
   const dispatch = useAppDispatch();
   const [presentAlert] = useIonAlert();
-  const userTheme = useTheme();
 
   function onChangeTheme(themeName: AppThemeType) {
     dispatch(setTheme(themeName));
 
     const theme = getTheme(themeName);
 
-    if (theme.dark.background && !theme.light.background && !userTheme.dark) {
+    if (theme.dark.background && !theme.light.background && !isDark) {
       presentAlert({
         header: `${capitalize(themeName)} Looks Best Dark`,
         message: `Just as a heads up, you're in the light theme currently but ${capitalize(
@@ -53,14 +52,18 @@ export default function AppTheme() {
       >
         <IonList inset>
           {Object.values(OAppThemeType).map((theme) => (
-            <InsetIonItem key={theme}>
-              <AppThemePreview appTheme={theme} />
-              <IonLabel>
-                <div>{getThemeName(theme)}</div>
-                <Description>{getThemeDescription(theme)}</Description>
-              </IonLabel>
-              <IonRadio value={theme} />
-            </InsetIonItem>
+            <IonItem key={theme}>
+              <AppThemePreview slot="start" appTheme={theme} />
+
+              <IonRadio value={theme}>
+                <IonLabel>
+                  <div>{getThemeName(theme)}</div>
+                  <div className={styles.description}>
+                    {getThemeDescription(theme)}
+                  </div>
+                </IonLabel>
+              </IonRadio>
+            </IonItem>
           ))}
         </IonList>
       </IonRadioGroup>
@@ -86,6 +89,10 @@ function getThemeName(appTheme: AppThemeType): string {
       return "Dracula";
     case "tangerine":
       return "Tangerine";
+    case "sunset":
+      return "Sunset";
+    case "outrun":
+      return "Outrun";
   }
 }
 
@@ -107,5 +114,9 @@ function getThemeDescription(appTheme: AppThemeType): string {
       return "Your Phone, Now Undeadly Cool";
     case "tangerine":
       return "Like oranges, but better!";
+    case "sunset":
+      return "Golden hour every hour";
+    case "outrun":
+      return "Digital nostalgia for the modern era.";
   }
 }

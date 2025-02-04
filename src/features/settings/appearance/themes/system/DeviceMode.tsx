@@ -1,7 +1,7 @@
 import { Mode } from "@ionic/core";
-import { useAppSelector } from "../../../../../store";
-import { InsetIonItem } from "../../../../user/Profile";
-import { IonLabel } from "@ionic/react";
+import { IonItem, IonLabel } from "@ionic/react";
+
+import { useAppSelector } from "#/store";
 
 export default function DeviceMode() {
   const deviceMode = useAppSelector(
@@ -10,12 +10,12 @@ export default function DeviceMode() {
 
   return (
     <>
-      <InsetIonItem button routerLink="/settings/appearance/theme/mode">
+      <IonItem button routerLink="/settings/appearance/theme/mode">
         <IonLabel>Device Mode</IonLabel>
-        <IonLabel slot="end" color="medium">
+        <IonLabel slot="end" color="medium" className="ion-no-margin">
           {getDeviceModeLabel(deviceMode)}
         </IonLabel>
-      </InsetIonItem>
+      </IonItem>
     </>
   );
 }

@@ -11,6 +11,7 @@
 # production
 /build
 /dist
+/dev-dist
 
 # misc
 .DS_Store
@@ -31,5 +32,14 @@ yarn-error.log*
 
 vite.config.ts.timestamp-*
 
+# Typescript Incremental Cache
+*.tsbuildinfo
+
 # fly.io
 fly.toml
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+*.css.d.ts

@@ -1,11 +1,9 @@
+import { isEqual } from "es-toolkit";
 import React, { useEffect, useState } from "react";
 
-const DEFAULT_LEMMY_SERVERS = [
-  "lemmy.world",
-  "lemmy.ml",
-  "beehaw.org",
-  "sh.itjust.works",
-];
+import { isNative } from "#/helpers/device";
+
+const DEFAULT_LEMMY_SERVERS = getCustomDefaultServers() ?? ["lemm.ee"];
 
 let _customServers = DEFAULT_LEMMY_SERVERS;
 
@@ -14,16 +12,26 @@ export function getCustomServers() {
 }
 
 export function getDefaultServer() {
-  return _customServers[0];
+  return _customServers[0]!;
+}
+
+export function defaultServersUntouched() {
+  return isEqual(DEFAULT_LEMMY_SERVERS, getCustomServers());
 }
 
 async function getConfig() {
-  const response = await fetch("/_config");
+  if (isNative()) return;
 
-  const { customServers } = await response.json();
+  try {
+    const response = await fetch("/_config");
 
-  if (customServers?.length) {
-    _customServers = customServers;
+    const { customServers } = await response.json();
+
+    if (customServers?.length) {
+      _customServers = customServers;
+    }
+  } catch (_) {
+    return; // ignore errors in loading config
   }
 }
 
@@ -35,7 +43,7 @@ interface ConfigProviderProps {
 }
 
 export default function ConfigProvider({ children }: ConfigProviderProps) {
-  const [configLoaded, setConfigLoaded] = useState(false);
+  const [configLoaded, setConfigLoaded] = useState(isNative()); // native does not load config
 
   useEffect(() => {
     // Config is not necessary for app to run
@@ -45,4 +53,13 @@ export default function ConfigProvider({ children }: ConfigProviderProps) {
   }, []);
 
   if (configLoaded) return children;
+}
+
+function getCustomDefaultServers() {
+  const serversList: string | undefined = import.meta.env
+    .VITE_CUSTOM_LEMMY_SERVERS;
+
+  if (!serversList) return;
+
+  return serversList.split(",");
 }

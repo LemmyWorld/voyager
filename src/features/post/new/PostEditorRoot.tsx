@@ -1,82 +1,53 @@
-import styled from "@emotion/styled";
 import {
-  IonButtons,
   IonButton,
-  IonHeader,
+  IonButtons,
   IonContent,
-  IonToolbar,
-  IonTitle,
-  IonText,
+  IonIcon,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonList,
+  IonNavLink,
   IonSegment,
   IonSegmentButton,
-  IonItem,
-  IonList,
-  IonInput,
-  IonLabel,
-  IonIcon,
-  IonNavLink,
-  useIonRouter,
+  IonSpinner,
+  IonText,
+  IonTitle,
   IonToggle,
+  IonToolbar,
+  useIonAlert,
 } from "@ionic/react";
-import { useEffect, useState } from "react";
-import useClient from "../../../helpers/useClient";
-import { useAppDispatch, useAppSelector } from "../../../store";
-import { Centered, Spinner } from "../../auth/Login";
-import { jwtSelector, urlSelector } from "../../auth/authSlice";
-import { startCase } from "lodash";
-import { css } from "@emotion/react";
-import { getHandle, getRemoteHandle, isUrlImage } from "../../../helpers/lemmy";
-import { cameraOutline } from "ionicons/icons";
-import { PostEditorProps } from "./PostEditor";
-import NewPostText from "./NewPostText";
-import { useBuildGeneralBrowseLink } from "../../../helpers/routes";
-import PhotoPreview from "./PhotoPreview";
-import { uploadImage } from "../../../services/lemmy";
+import { startCase } from "es-toolkit";
+import { accessibility, cameraOutline } from "ionicons/icons";
+import { Post } from "lemmy-js-client";
+import { useEffect, useMemo, useState } from "react";
+
+import AppHeader from "#/features/shared/AppHeader";
+import {
+  deletePendingImageUploads,
+  uploadImage,
+} from "#/features/shared/markdown/editing/uploadImageSlice";
+import { buildPostLink } from "#/helpers/appLinkBuilder";
+import { isAndroid } from "#/helpers/device";
+import { getRemoteHandle } from "#/helpers/lemmy";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+import {
+  buildPostCreated,
+  postEdited,
+  problemFetchingTitle,
+} from "#/helpers/toastMessages";
+import { isUrlImage, isValidUrl } from "#/helpers/url";
+import useAppToast from "#/helpers/useAppToast";
+import useClient from "#/helpers/useClient";
+import { useOptimizedIonRouter } from "#/helpers/useOptimizedIonRouter";
+import { useAppDispatch } from "#/store";
+
 import { receivedPosts } from "../postSlice";
-import useAppToast from "../../../helpers/useAppToast";
-import { isValidUrl } from "../../../helpers/url";
-import { problemFetchingTitle } from "../../../helpers/toastMessages";
+import NewPostText from "./NewPostText";
+import PhotoPreview from "./PhotoPreview";
+import { PostEditorProps } from "./PostEditor";
 
-const Container = styled.div`
-  position: absolute;
-  inset: 0;
-
-  display: flex;
-  flex-direction: column;
-`;
-
-const IonInputTitle = styled(IonInput)`
-  .input-bottom {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    right: 0;
-    border: 0;
-    padding-top: 0;
-  }
-
-  .native-wrapper {
-    margin-right: 2rem;
-  }
-`;
-
-const PostingIn = styled.div`
-  font-size: 0.875em;
-  margin: 0.5rem 0;
-  text-align: center;
-  color: var(--ion-color-medium);
-`;
-
-const CameraIcon = styled(IonIcon)`
-  margin: -0.2em 0; // TODO negative margin, bad alex
-  font-size: 1.5em;
-
-  margin-right: 0.5rem;
-`;
-
-const HiddenInput = styled.input`
-  display: none;
-`;
+import styles from "./PostEditorRoot.module.css";
 
 type PostType = "photo" | "link" | "text";
 
@@ -87,6 +58,11 @@ export default function PostEditorRoot({
   dismiss,
   ...props
 }: PostEditorProps) {
+  const dispatch = useAppDispatch();
+  const [presentAlert] = useIonAlert();
+  const router = useOptimizedIonRouter();
+  const buildGeneralBrowseLink = useBuildGeneralBrowseLink();
+
   const community =
     "existingPost" in props
       ? props.existingPost.community
@@ -96,12 +72,14 @@ export default function PostEditorRoot({
 
   const existingPost = "existingPost" in props ? props.existingPost : undefined;
 
-  const dispatch = useAppDispatch();
+  const isImage = useMemo(
+    () =>
+      existingPost?.post.url &&
+      isUrlImage(existingPost.post.url, existingPost.post.url_content_type),
+    [existingPost],
+  );
 
-  const initialImage =
-    existingPost?.post.url && isUrlImage(existingPost.post.url)
-      ? existingPost.post.url
-      : undefined;
+  const initialImage = isImage ? existingPost!.post.url : undefined;
 
   const initialPostType = (() => {
     if (!existingPost) return "photo";
@@ -115,7 +93,9 @@ export default function PostEditorRoot({
 
   const initialTitle = existingPost?.post.name ?? "";
 
-  const initialUrl = initialImage ? "" : existingPost?.post.url ?? "";
+  const initialAltText = existingPost?.post.alt_text ?? "";
+
+  const initialUrl = initialImage ? "" : (existingPost?.post.url ?? "");
 
   const initialText = existingPost?.post.body ?? "";
 
@@ -123,10 +103,10 @@ export default function PostEditorRoot({
 
   const [postType, setPostType] = useState<PostType>(initialPostType);
   const client = useClient();
-  const jwt = useAppSelector(jwtSelector);
   const presentToast = useAppToast();
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState(initialTitle);
+  const [altText, setAltText] = useState(initialAltText);
   const [url, setUrl] = useState(initialUrl);
   const [text, setText] = useState(initialText);
   const [nsfw, setNsfw] = useState(initialNsfw);
@@ -136,11 +116,6 @@ export default function PostEditorRoot({
     initialImage,
   );
   const [photoUploading, setPhotoUploading] = useState(false);
-
-  const instanceUrl = useAppSelector(urlSelector);
-
-  const router = useIonRouter();
-  const buildGeneralBrowseLink = useBuildGeneralBrowseLink();
 
   const showAutofill = !!url && isValidUrl(url) && !title;
 
@@ -214,11 +189,26 @@ export default function PostEditorRoot({
       }
     })();
 
+    const postAltText = (() => {
+      switch (postType) {
+        case "link":
+        default:
+          return undefined;
+        case "photo":
+          return altText;
+      }
+    })();
+
     let errorMessage: string | undefined;
 
     if (!title) {
       errorMessage = "Please add a title to your post.";
-    } else if (postType === "link" && (!url || !validUrl(url))) {
+    } else if (title.length < 3) {
+      errorMessage = "Post title must contain at least three characters.";
+    } else if (
+      postType === "link" &&
+      (!url || !isValidUrl(url, { allowRelative: false }))
+    ) {
       errorMessage =
         "Please add a valid URL to your post (start with https://).";
     } else if (postType === "photo" && !photoUrl) {
@@ -230,8 +220,8 @@ export default function PostEditorRoot({
 
     if (errorMessage) {
       presentToast({
-        // TODO more helpful msg
         message: errorMessage,
+        color: "warning",
         fullscreen: true,
       });
 
@@ -242,11 +232,12 @@ export default function PostEditorRoot({
 
     let postResponse;
 
-    const payload = {
+    const payload: Pick<Post, "name" | "url" | "body" | "nsfw" | "alt_text"> = {
       name: title,
       url: postUrl,
       body: text || undefined,
       nsfw: showNsfwToggle && nsfw,
+      alt_text: postAltText,
     };
 
     try {
@@ -275,43 +266,44 @@ export default function PostEditorRoot({
 
     dispatch(receivedPosts([postResponse.post_view]));
 
-    presentToast({
-      message: existingPost ? "Post edited!" : "Post created!",
-      color: "primary",
-      position: "top",
-      centerText: true,
-      fullscreen: true,
-    });
+    if (existingPost) presentToast(postEdited);
+    else
+      presentToast(
+        buildPostCreated((e, dismiss) => {
+          router.push(
+            buildGeneralBrowseLink(
+              buildPostLink(
+                postResponse.post_view.community,
+                postResponse.post_view.post,
+              ),
+            ),
+          );
+
+          dismiss();
+        }),
+      );
 
     setCanDismiss(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
     dismiss();
-
-    if (!existingPost)
-      router.push(
-        buildGeneralBrowseLink(
-          `/c/${getHandle(community)}/comments/${
-            postResponse.post_view.post.id
-          }`,
-        ),
-      );
   }
 
   async function receivedImage(image: File) {
-    if (!jwt) return;
-
     setPhotoPreviewURL(URL.createObjectURL(image));
     setPhotoUploading(true);
 
     let imageUrl;
 
+    // On Samsung devices, upload from photo picker will return DOM error on upload without timeout 🤬
+    if (isAndroid()) await new Promise((resolve) => setTimeout(resolve, 250));
+
     try {
-      imageUrl = await uploadImage(instanceUrl, jwt, image);
+      imageUrl = await dispatch(uploadImage(image));
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+
       presentToast({
-        message: "Problem uploading image. Please try again.",
+        message: `Problem uploading image: ${message}. Please try again.`,
         color: "danger",
         fullscreen: true,
       });
@@ -321,6 +313,8 @@ export default function PostEditorRoot({
     } finally {
       setPhotoUploading(false);
     }
+
+    dispatch(deletePendingImageUploads(imageUrl));
 
     setPhotoUrl(imageUrl);
   }
@@ -350,39 +344,61 @@ export default function PostEditorRoot({
     setTitle(metadata.title?.slice(0, MAX_TITLE_LENGTH));
   }
 
+  async function openCaptionPrompt() {
+    presentAlert({
+      message: "Add an accessible caption",
+      inputs: [
+        {
+          type: "textarea",
+          value: altText,
+          placeholder: "Fluffy fur blankets the feline",
+          name: "altText",
+          attributes: { rows: 3 },
+        },
+      ],
+      buttons: [
+        { text: "Cancel", role: "cancel" },
+        {
+          text: altText ? "Update" : "Add",
+          handler: ({ altText }) => {
+            setAltText(altText);
+          },
+        },
+      ],
+    });
+  }
+
+  const postButtonDisabled = loading || !canSubmit();
+
   return (
     <>
-      <IonHeader>
+      <AppHeader>
         <IonToolbar>
           <IonButtons slot="start">
-            <IonButton color="medium" onClick={() => dismiss()}>
-              Cancel
-            </IonButton>
+            <IonButton onClick={() => dismiss()}>Cancel</IonButton>
           </IonButtons>
           <IonTitle>
-            <Centered>
-              <IonText>
-                {existingPost ? "Edit Post" : <>{startCase(postType)} Post</>}
-              </IonText>
-              {loading && <Spinner color="dark" />}
-            </Centered>
+            {existingPost ? "Edit Post" : <>{startCase(postType)} Post</>}
           </IonTitle>
           <IonButtons slot="end">
-            <IonButton
-              strong={true}
-              type="submit"
-              disabled={loading || !canSubmit()}
-              onClick={submit}
-            >
-              Post
-            </IonButton>
+            {loading ? (
+              <IonSpinner />
+            ) : (
+              <IonButton
+                color={postButtonDisabled ? "medium" : undefined}
+                strong
+                type="submit"
+                disabled={postButtonDisabled}
+                onClick={submit}
+              >
+                {existingPost ? "Save" : "Post"}
+              </IonButton>
+            )}
           </IonButtons>
         </IonToolbar>
         <IonToolbar>
           <IonSegment
-            css={css`
-              width: 100%;
-            `}
+            className={styles.segment}
             value={postType}
             onIonChange={(e) => setPostType(e.target.value as PostType)}
           >
@@ -391,17 +407,22 @@ export default function PostEditorRoot({
             <IonSegmentButton value="text">Text</IonSegmentButton>
           </IonSegment>
         </IonToolbar>
-      </IonHeader>
+      </AppHeader>
       <IonContent>
-        <Container>
+        <div className={styles.container}>
           <IonList>
             <IonItem>
-              <IonInputTitle
+              <IonInput
+                className={styles.ionInputTitle}
                 value={title}
                 clearInput
                 onIonInput={(e) => setTitle(e.detail.value ?? "")}
                 placeholder="Title"
                 counter
+                inputMode="text"
+                autocapitalize="on"
+                autocorrect="on"
+                spellCheck
                 maxlength={MAX_TITLE_LENGTH}
                 counterFormatter={(inputLength, maxLength) =>
                   showAutofill ? "" : `${maxLength - inputLength}`
@@ -421,16 +442,21 @@ export default function PostEditorRoot({
             </IonItem>
             {postType === "photo" && (
               <>
-                <label htmlFor="photo-upload">
+                <label htmlFor="photo-upload-post">
                   <IonItem>
                     <IonLabel color="primary">
-                      <CameraIcon icon={cameraOutline} /> Choose Photo
+                      <IonIcon
+                        className={styles.cameraIcon}
+                        icon={cameraOutline}
+                      />{" "}
+                      Choose Photo
                     </IonLabel>
 
-                    <HiddenInput
+                    <input
                       type="file"
                       accept="image/*"
-                      id="photo-upload"
+                      id="photo-upload-post"
+                      className={styles.hiddenInput}
                       onInput={(e) => {
                         const image = (e.target as HTMLInputElement).files?.[0];
                         if (!image) return;
@@ -446,6 +472,15 @@ export default function PostEditorRoot({
                       src={photoPreviewURL}
                       loading={photoUploading}
                     />
+                    <IonButton
+                      fill={altText ? "solid" : "outline"}
+                      shape="round"
+                      tabIndex={0}
+                      aria-label="Caption this image"
+                      onClick={openCaptionPrompt}
+                    >
+                      <IonIcon slot="icon-only" icon={accessibility} />
+                    </IonButton>
                   </IonItem>
                 )}
               </>
@@ -454,6 +489,7 @@ export default function PostEditorRoot({
               <IonItem>
                 <IonInput
                   placeholder="https://aspca.org"
+                  inputMode="url"
                   clearInput
                   value={url}
                   onIonInput={(e) => setUrl(e.detail.value ?? "")}
@@ -462,12 +498,12 @@ export default function PostEditorRoot({
             )}
             {showNsfwToggle && (
               <IonItem>
-                <IonText color="medium">NSFW</IonText>{" "}
                 <IonToggle
-                  slot="end"
                   checked={nsfw}
                   onIonChange={(e) => setNsfw(e.detail.checked)}
-                />
+                >
+                  <IonText color="medium">NSFW</IonText>
+                </IonToggle>
               </IonItem>
             )}
             <IonNavLink
@@ -478,30 +514,26 @@ export default function PostEditorRoot({
                   setValue={setText}
                   onSubmit={submit}
                   editing={"existingPost" in props}
+                  dismiss={dismiss}
                 />
               )}
             >
               <IonItem detail>
-                <IonLabel color={!text ? "medium" : undefined}>
+                <IonLabel
+                  color={!text ? "medium" : undefined}
+                  className="ion-text-nowrap"
+                >
                   {!text ? "Text (optional)" : text}
                 </IonLabel>
               </IonItem>
             </IonNavLink>
           </IonList>
 
-          <PostingIn>Posting in {getRemoteHandle(community)}</PostingIn>
-        </Container>
+          <div className={styles.postingIn}>
+            Posting in {getRemoteHandle(community)}
+          </div>
+        </div>
       </IonContent>
     </>
   );
-}
-
-function validUrl(url: string): boolean {
-  try {
-    new URL(url);
-  } catch (e) {
-    return false;
-  }
-
-  return true;
 }

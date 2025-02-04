@@ -1,18 +1,20 @@
-import {
-  Dictionary,
-  PayloadAction,
-  createAsyncThunk,
-  createSlice,
-} from "@reduxjs/toolkit";
-import { PostView, SortType } from "lemmy-js-client";
-import { AppDispatch, RootState } from "../../store";
-import { clientSelector, handleSelector, jwtSelector } from "../auth/authSlice";
-import { POST_SORTS } from "../feed/PostSort";
-import { get, set } from "../settings/storage";
-import { IPostMetadata, db } from "../../services/db";
-import { isLemmyError } from "../../helpers/lemmy";
+import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { Post, PostView } from "lemmy-js-client";
 
-const POST_SORT_KEY = "post-sort-v2";
+import {
+  clientSelector,
+  jwtSelector,
+  userHandleSelector,
+} from "#/features/auth/authSelectors";
+import { resolvePostReport } from "#/features/moderation/modSlice";
+import {
+  fetchTagsForHandles,
+  updateTagVotes,
+} from "#/features/tags/userTagSlice";
+import { getRemoteHandle } from "#/helpers/lemmy";
+import { isLemmyError } from "#/helpers/lemmyErrors";
+import { db, IPostMetadata } from "#/services/db";
+import { AppDispatch, RootState } from "#/store";
 
 interface PostHiddenData {
   /**
@@ -30,21 +32,29 @@ interface PostHiddenData {
 }
 
 interface PostState {
-  postById: Dictionary<PostView | "not-found">;
-  postHiddenById: Dictionary<PostHiddenData>;
-  postVotesById: Dictionary<1 | -1 | 0>;
-  postSavedById: Dictionary<boolean>;
-  postReadById: Dictionary<boolean>;
-  sort: SortType;
+  postById: Record<string, PostView | "not-found">;
+
+  /**
+   * Separate deleted dictionary is so that the feed can observe and not get hammered with updates
+   * (this should only ever change when the user deletes their own post to trigger the feed to hide it)
+   */
+  postDeletedById: Record<string, boolean>;
+
+  postHiddenById: Record<string, PostHiddenData>;
+  postVotesById: Record<string, 1 | -1 | 0 | undefined>;
+  postSavedById: Record<string, boolean | undefined>;
+  postReadById: Record<string, boolean>;
+  postCollapsedById: Record<string, boolean>;
 }
 
 const initialState: PostState = {
   postById: {},
+  postDeletedById: {},
   postHiddenById: {},
   postVotesById: {},
   postSavedById: {},
   postReadById: {},
-  sort: get(POST_SORT_KEY) ?? POST_SORTS[0],
+  postCollapsedById: {},
 };
 
 export const postSlice = createSlice({
@@ -64,15 +74,18 @@ export const postSlice = createSlice({
       state.postSavedById[action.payload.postId] = action.payload.saved;
     },
     resetPosts: () => initialState,
-    updateSortType(state, action: PayloadAction<SortType>) {
-      state.sort = action.payload;
-      set(POST_SORT_KEY, action.payload);
-    },
     updatePostRead: (state, action: PayloadAction<{ postId: number }>) => {
       state.postReadById[action.payload.postId] = true;
     },
     receivedPostNotFound: (state, action: PayloadAction<number>) => {
       state.postById[action.payload] = "not-found";
+    },
+    postDeleted: (state, action: PayloadAction<number>) => {
+      state.postDeletedById[action.payload] = true;
+    },
+    togglePostCollapse: (state, action: PayloadAction<number>) => {
+      state.postCollapsedById[action.payload] =
+        !state.postCollapsedById[action.payload];
     },
     resetHidden: (state) => {
       state.postHiddenById = {};
@@ -99,6 +112,12 @@ export const postSlice = createSlice({
             state.postVotesById[post.post.id] = post.my_vote as 1 | -1;
 
           if (post.saved) state.postSavedById[post.post.id] = post.saved;
+
+          // If user restores a post, reset local state
+          // (you can't do this through Voyager, but you can with lemmy-ui)
+          if (!post.post.deleted && state.postDeletedById[post.post.id]) {
+            delete state.postDeletedById[post.post.id];
+          }
         }
       })
       .addCase(updatePostHidden.fulfilled, (state, action) => {
@@ -133,7 +152,7 @@ export const updatePostHidden = createAsyncThunk(
     thunkAPI,
   ) => {
     const rootState = thunkAPI.getState() as RootState;
-    const handle = handleSelector(rootState);
+    const handle = userHandleSelector(rootState);
 
     if (!handle) return;
 
@@ -161,7 +180,7 @@ export const bulkUpdatePostsHidden = createAsyncThunk(
     thunkAPI,
   ) => {
     const rootState = thunkAPI.getState() as RootState;
-    const handle = handleSelector(rootState);
+    const handle = userHandleSelector(rootState);
 
     if (!handle) return;
 
@@ -184,8 +203,8 @@ export const receivedPosts = createAsyncThunk(
   "post/receivedPosts",
   async (posts: PostView[], thunkAPI) => {
     const rootState = thunkAPI.getState() as RootState;
-    const handle = handleSelector(rootState);
-    const postHiddenById: Dictionary<boolean> = {};
+    const handle = userHandleSelector(rootState);
+    const postHiddenById: Record<string, boolean> = {};
 
     if (!handle)
       return {
@@ -194,11 +213,24 @@ export const receivedPosts = createAsyncThunk(
       };
 
     const receivedPostsIds = posts.map((post) => post.post.id);
-    const postMetadatas = await db.getPostMetadatas(receivedPostsIds, handle);
+
+    let postMetadatas: IPostMetadata[];
+
+    try {
+      postMetadatas = await db.getPostMetadatas(receivedPostsIds, handle);
+    } catch (error) {
+      // If lockdown mode or indexeddb unavailable, continue
+      postMetadatas = [];
+      console.error("Error fetching post metadatas", error);
+    }
 
     for (const postMetadata of postMetadatas) {
       postHiddenById[postMetadata.post_id] = !!postMetadata.hidden;
     }
+
+    thunkAPI.dispatch(
+      fetchTagsForHandles(posts.map((c) => getRemoteHandle(c.creator))),
+    );
 
     return {
       posts,
@@ -211,19 +243,27 @@ export const receivedPosts = createAsyncThunk(
 export const {
   updatePostVote,
   resetPosts,
-  updateSortType,
   updatePostSaved,
   updatePostRead,
   receivedPostNotFound,
+  postDeleted,
+  togglePostCollapse,
   resetHidden,
 } = postSlice.actions;
 
 export default postSlice.reducer;
 
 export const savePost =
-  (postId: number, save: boolean) =>
+  (post: PostView, save: boolean) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
+    const postId = post.post.id;
     const oldSaved = getState().post.postSavedById[postId];
+
+    const { upvoteOnSave } = getState().settings.general.posts;
+
+    if (upvoteOnSave && save) {
+      dispatch(voteOnPost(post, 1));
+    }
 
     dispatch(updatePostSaved({ postId, saved: save }));
 
@@ -240,31 +280,50 @@ export const savePost =
   };
 
 export const setPostRead =
-  (postId: number, autoHideDisabled = false) =>
+  (postId: number) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
     if (!jwtSelector(getState())) return;
+
     if (getState().settings.general.posts.disableMarkingRead) return;
 
-    if (getState().settings.general.posts.autoHideRead && !autoHideDisabled)
-      dispatch(hidePost(postId, false));
+    if (getState().post.postReadById[postId]) return;
 
-    if (!getState().post.postReadById[postId]) {
-      dispatch(updatePostRead({ postId }));
-      await clientSelector(getState())?.markPostAsRead({
-        post_id: postId,
-        read: true,
-      });
-    }
+    dispatch(updatePostRead({ postId }));
+    await clientSelector(getState())?.markPostAsRead({
+      post_ids: [postId],
+      read: true,
+    });
+  };
+
+export const setPostHidden =
+  (postId: number) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    if (!jwtSelector(getState())) return;
+
+    if (getState().settings.general.posts.disableMarkingRead) return;
+    if (!getState().settings.general.posts.autoHideRead) return;
+
+    dispatch(hidePost(postId, false));
   };
 
 export const voteOnPost =
-  (postId: number, vote: 1 | -1 | 0) =>
+  (post: PostView, vote: 1 | -1 | 0) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
+    const postId = post.post.id;
+
     const oldVote = getState().post.postVotesById[postId];
 
     dispatch(updatePostVote({ postId, vote }));
 
     dispatch(setPostRead(postId));
+
+    dispatch(
+      updateTagVotes({
+        handle: getRemoteHandle(post.creator),
+        oldVote,
+        newVote: vote,
+      }),
+    );
 
     try {
       await clientSelector(getState())?.likePost({
@@ -273,6 +332,15 @@ export const voteOnPost =
       });
     } catch (error) {
       dispatch(updatePostVote({ postId, vote: oldVote }));
+
+      dispatch(
+        updateTagVotes({
+          handle: getRemoteHandle(post.creator),
+          oldVote: vote,
+          newVote: oldVote,
+        }),
+      );
+
       throw error;
     }
   };
@@ -286,10 +354,10 @@ export const getPost =
         id,
       });
     } catch (error) {
-      // I think there is a bug in lemmy-js-client where it tries to parse 404 with non-json body
       if (
-        isLemmyError(error, "couldnt_find_post") ||
-        error instanceof SyntaxError
+        isLemmyError(error, "couldnt_find_post" as never) || // TODO lemmy 0.19 and less support
+        isLemmyError(error, "not_found") ||
+        isLemmyError(error, "unknown")
       ) {
         dispatch(receivedPostNotFound(id));
       }
@@ -303,26 +371,12 @@ export const getPost =
 
 export const deletePost =
   (id: number) => async (dispatch: AppDispatch, getState: () => RootState) => {
-    try {
-      await clientSelector(getState()).deletePost({
-        post_id: id,
-        deleted: true,
-      });
-    } catch (error) {
-      // I think there is a bug in lemmy-js-client where it tries to parse 404 with non-json body
-      if (
-        isLemmyError(error, "couldnt_find_post") ||
-        error instanceof SyntaxError
-      ) {
-        dispatch(receivedPostNotFound(id));
+    await clientSelector(getState()).deletePost({
+      post_id: id,
+      deleted: true,
+    });
 
-        return;
-      }
-
-      throw error;
-    }
-
-    dispatch(receivedPostNotFound(id));
+    dispatch(postDeleted(id));
   };
 
 export const hidePost =
@@ -345,7 +399,7 @@ export const unhidePost =
 
 export const clearHidden =
   () => async (dispatch: AppDispatch, getState: () => RootState) => {
-    const handle = handleSelector(getState());
+    const handle = userHandleSelector(getState());
     if (!handle) return;
     await db.clearHiddenPosts(handle);
     await dispatch(resetHidden());
@@ -354,3 +408,39 @@ export const clearHidden =
 export const postHiddenByIdSelector = (state: RootState) => {
   return state.post.postHiddenById;
 };
+
+export const modRemovePost =
+  (post: Post, removed: boolean, reason?: string) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    const response = await clientSelector(getState())?.removePost({
+      post_id: post.id,
+      removed,
+      reason,
+    });
+
+    dispatch(receivedPosts([response.post_view]));
+    await dispatch(resolvePostReport(post.id));
+  };
+
+export const modLockPost =
+  (postId: number, locked: boolean) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    const response = await clientSelector(getState())?.lockPost({
+      post_id: postId,
+      locked,
+    });
+
+    dispatch(receivedPosts([response.post_view]));
+  };
+
+export const modStickyPost =
+  (postId: number, stickied: boolean) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    const response = await clientSelector(getState())?.featurePost({
+      post_id: postId,
+      feature_type: "Community",
+      featured: stickied,
+    });
+
+    dispatch(receivedPosts([response.post_view]));
+  };

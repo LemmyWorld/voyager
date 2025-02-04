@@ -1,35 +1,46 @@
-import { css } from "@emotion/react";
-import { useAppSelector } from "../../../store";
-import { CenteredSpinner } from "../../post/detail/PostDetail";
+import { IonBadge, IonRefresher, IonRefresherContent } from "@ionic/react";
+
+import { getSite, lemmyVersionSelector } from "#/features/auth/siteSlice";
+import { CenteredSpinner } from "#/features/shared/CenteredSpinner";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import GenericSidebar from "./GenericSidebar";
-import { IonBadge } from "@ionic/react";
-import { lemmyVersionSelector } from "../../auth/authSlice";
 
 export default function InstanceSidebar() {
-  const siteView = useAppSelector((state) => state.auth.site?.site_view);
-  const admins = useAppSelector((state) => state.auth.site?.admins);
+  const dispatch = useAppDispatch();
+  const siteView = useAppSelector((state) => state.site.response?.site_view);
+  const admins = useAppSelector((state) => state.site.response?.admins);
   const lemmyVersion = useAppSelector(lemmyVersionSelector);
 
-  if (!siteView || !admins)
-    return (
-      <CenteredSpinner
-        css={css`
-          margin-top: 25vh;
-        `}
-      />
-    );
+  if (!siteView || !admins) return <CenteredSpinner />;
 
   const { site, counts } = siteView;
 
   return (
-    <GenericSidebar
-      type="instance"
-      sidebar={site.sidebar ?? site.description ?? ""}
-      people={admins.map((a) => a.person)}
-      counts={counts}
-      extraBadges={<IonBadge color="dark">v{lemmyVersion}</IonBadge>}
-      banner={site.banner}
-      name={site.actor_id}
-    />
+    <>
+      <IonRefresher
+        slot="fixed"
+        onIonRefresh={async (e) => {
+          try {
+            await dispatch(getSite());
+          } finally {
+            e.detail.complete();
+          }
+        }}
+      >
+        <IonRefresherContent />
+      </IonRefresher>
+
+      <GenericSidebar
+        type="instance"
+        sidebar={site.sidebar ?? site.description ?? ""}
+        people={admins.map((a) => a.person)}
+        counts={counts}
+        extraBadges={<IonBadge color="dark">v{lemmyVersion}</IonBadge>}
+        banner={site.banner}
+        name={site.actor_id}
+        id={site.actor_id}
+      />
+    </>
   );
 }
